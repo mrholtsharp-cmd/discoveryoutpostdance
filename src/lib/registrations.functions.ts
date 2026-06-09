@@ -8,7 +8,7 @@ const registrationSchema = z.object({
   email: z.string().trim().email().max(255),
   phone: z.string().trim().min(7).max(30),
   age: z.number().int().min(2).max(99),
-  desired_class: z.enum(["Tap", "Jazz", "Ballet"]),
+  desired_class: z.enum(["Tap", "Jazz", "Ballet", "Musical Theater"]),
   experience_level: z.enum(["Beginner", "Intermediate", "Advanced"]),
   medical_notes: z.string().trim().max(1000).optional().nullable(),
   emergency_contact: z.string().trim().min(1).max(200),

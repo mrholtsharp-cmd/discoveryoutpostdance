@@ -14,9 +14,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Discovery Outpost Performing Arts Dance — Tap, Jazz & Ballet" },
-      { name: "description", content: "Professional dance studio offering Tap, Jazz, and Ballet classes for all ages and skill levels. Where confidence meets movement." },
+      { name: "description", content: "Dance studio offering Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels. Where confidence meets movement." },
       { property: "og:title", content: "Discovery Outpost Performing Arts Dance" },
-      { property: "og:description", content: "Professional training in Tap, Jazz, and Ballet for all ages and skill levels." },
+      { property: "og:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
       { property: "og:url", content: "/" },
     ],
     links: [{ rel: "canonical", href: "/" }],
@@ -44,13 +44,15 @@ function Index() {
 function Hero() {
   return (
     <section className="relative overflow-hidden">
-      <div className="absolute inset-0 -z-10" aria-hidden>
-        <div className="absolute inset-0 bg-gradient-to-b from-accent/40 via-background to-background" />
-        <div className="absolute -top-20 -right-20 h-[500px] w-[500px] rounded-full opacity-30 blur-3xl"
-             style={{ background: "radial-gradient(circle, #E88AB0 0%, transparent 70%)" }} />
+      {/* Logo painted first (deepest layer) so the pink color washes over it */}
+      <div className="absolute inset-0 -z-20 flex items-center justify-center pointer-events-none" aria-hidden>
+        <Logo className="h-[420px] w-[420px] md:h-[680px] md:w-[680px] opacity-40 animate-float-slow" />
       </div>
-      <div className="absolute right-0 top-12 -z-10 opacity-[0.06] hidden md:block">
-        <Logo className="h-[600px] w-[600px] animate-float-slow" />
+      {/* Pink color overlay sits on top of the logo */}
+      <div className="absolute inset-0 -z-10 pointer-events-none" aria-hidden>
+        <div className="absolute inset-0 bg-gradient-to-b from-accent/70 via-accent/30 to-background" />
+        <div className="absolute -top-20 -right-20 h-[500px] w-[500px] rounded-full opacity-40 blur-3xl"
+             style={{ background: "radial-gradient(circle, #E88AB0 0%, transparent 70%)" }} />
       </div>
       <div className="mx-auto max-w-6xl px-6 pt-20 pb-20 md:pt-32 md:pb-28">
         <div className="max-w-2xl animate-fade-up">
@@ -62,7 +64,7 @@ function Hero() {
             <em className="italic font-light text-primary">Meets Movement</em>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-lg leading-relaxed">
-            Professional training in Tap, Jazz, and Ballet for all ages and skill levels.
+            Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels.
           </p>
           <div className="mt-10 flex flex-wrap gap-4">
             <Button asChild size="lg" className="rounded-full px-8 h-12 text-base">
@@ -136,6 +138,7 @@ const classData = [
   { name: "Ballet", desc: "Classical technique, grace, posture, and discipline." },
   { name: "Jazz", desc: "High-energy movement, rhythm, flexibility, and performance." },
   { name: "Tap", desc: "Rhythm, musicality, coordination, and timing." },
+  { name: "Musical Theater", desc: "Acting, singing, and dance fused into stage-ready performance." },
 ];
 
 function Classes() {
@@ -144,9 +147,9 @@ function Classes() {
       <div className="mx-auto max-w-6xl px-6 py-24">
         <div className="text-center max-w-2xl mx-auto">
           <span className="text-xs uppercase tracking-[0.25em] text-primary">Our Classes</span>
-          <h2 className="font-display text-4xl sm:text-5xl mt-4">Three disciplines. One studio.</h2>
+          <h2 className="font-display text-4xl sm:text-5xl mt-4">Four disciplines. One studio.</h2>
         </div>
-        <div className="mt-14 grid md:grid-cols-3 gap-8">
+        <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {classData.map((c) => (
             <Card key={c.name} className="overflow-hidden border-border bg-background hover-lift p-0">
               <ImagePlaceholder label={c.name} aspect="aspect-[4/5]" className="rounded-none rounded-t-2xl" />
@@ -282,7 +285,7 @@ function Testimonials() {
 
 function WhyChooseUs() {
   const items = [
-    "Professional Instruction in Tap, Jazz, and Ballet",
+    "Instruction in Tap, Jazz, Ballet, and Musical Theater",
     "Beginner to Advanced Programs",
     "Performance Opportunities",
     "Confidence & Discipline Focus",
@@ -313,9 +316,9 @@ function Contact() {
         <span className="text-xs uppercase tracking-[0.25em] text-primary">Visit Us</span>
         <h2 className="font-display text-4xl sm:text-5xl mt-4">Come dance with us.</h2>
         <ul className="mt-8 space-y-4 text-sm">
-          <li className="flex items-start gap-3"><Phone className="h-4 w-4 mt-1 text-primary"/>(555) 123-4567</li>
-          <li className="flex items-start gap-3"><Mail className="h-4 w-4 mt-1 text-primary"/>hello@discoveryoutpost.dance</li>
-          <li className="flex items-start gap-3"><MapPin className="h-4 w-4 mt-1 text-primary"/>123 Studio Way, Your City, ST 00000</li>
+          <li className="flex items-start gap-3"><Phone className="h-4 w-4 mt-1 text-primary"/><span>(555) 123-4567</span></li>
+          <li className="flex items-start gap-3"><Mail className="h-4 w-4 mt-1 text-primary"/><span>hello@discoveryoutpost.dance</span></li>
+          <li className="flex items-start gap-3"><MapPin className="h-4 w-4 mt-1 text-primary"/><span>123 Studio Way, Your City, ST 00000</span></li>
         </ul>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild className="rounded-full"><a href="tel:5551234567">Call Now</a></Button>
