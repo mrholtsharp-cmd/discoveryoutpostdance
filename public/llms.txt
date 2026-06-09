@@ -1,0 +1,9 @@
+# Discovery Outpost Performing Arts Dance
+
+> Dance studio offering Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels. Where confidence meets movement.
+
+## Pages
+
+- [/](/): Home page with studio overview, class descriptions, weekly schedule preview, gallery, testimonials, and contact information.
+- [Class Schedule](/schedule): Weekly class schedule showing days, times, and disciplines offered.
+- [Register](/register): Online registration form for enrolling in dance classes or booking a trial class.
