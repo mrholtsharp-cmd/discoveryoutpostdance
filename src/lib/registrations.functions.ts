@@ -147,7 +147,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
     await logAudit({ event_type: "verify_succeeded", email });
 
     // Insert registration
-    const { error } = await supabaseAdmin.from("registrations").insert({
+    const { data: inserted, error } = await supabaseAdmin.from("registrations").insert({
       student_name: data.student_name,
       parent_name: data.parent_name,
       email,
@@ -166,7 +166,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
     await logAudit({
       event_type: "submit_success",
       email,
-      registration_id: (error as null) ?? null,
+      registration_id: inserted?.id ?? null,
       metadata: { desired_class: data.desired_class, is_trial: data.is_trial ?? false },
     });
     return { ok: true };
