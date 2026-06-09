@@ -14,9 +14,9 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Discovery Outpost Performing Arts Dance — Tap, Jazz & Ballet" },
-      { name: "description", content: "Professional dance studio offering Tap, Jazz, and Ballet classes for all ages and skill levels. Where confidence meets movement." },
+      { name: "description", content: "Dance studio offering Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels. Where confidence meets movement." },
       { property: "og:title", content: "Discovery Outpost Performing Arts Dance" },
-      { property: "og:description", content: "Professional training in Tap, Jazz, and Ballet for all ages and skill levels." },
+      { property: "og:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
       { property: "og:url", content: "/" },
     ],
     links: [{ rel: "canonical", href: "/" }],
