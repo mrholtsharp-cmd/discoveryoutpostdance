@@ -75,7 +75,7 @@
   --secondary: oklch(0.97 0.005 0);
   --secondary-foreground: oklch(0.18 0.005 285);
   --muted: oklch(0.97 0.005 0);
-  --muted-foreground: oklch(0.5 0.01 285);
+  --muted-foreground: oklch(0.42 0.01 285); /* WCAG AA: ~5.5:1 on white */
   --accent: oklch(0.91 0.05 0);              /* #F7C6D9 soft pink */
   --accent-foreground: oklch(0.18 0.005 285);
   --destructive: oklch(0.6 0.22 25);
