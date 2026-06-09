@@ -46,7 +46,7 @@ function Hero() {
     <section className="relative overflow-hidden">
       {/* Logo painted first (deepest layer) so the pink color washes over it */}
       <div className="absolute inset-0 -z-20 flex items-center justify-center pointer-events-none" aria-hidden>
-        <Logo className="h-[420px] w-[420px] md:h-[680px] md:w-[680px] opacity-40 animate-float-slow" />
+        <Logo className="h-[420px] w-[420px] md:h-[680px] md:w-[680px] opacity-60 animate-float-slow" />
       </div>
       {/* Pink color overlay sits on top of the logo */}
       <div className="absolute inset-0 -z-10 pointer-events-none" aria-hidden>
@@ -107,10 +107,10 @@ function About() {
       <div>
         <span className="text-xs uppercase tracking-[0.25em] text-primary">About the Studio</span>
         <h2 className="font-display text-4xl sm:text-5xl mt-4 leading-tight">
-          A welcoming home for serious dancers.
+          A welcoming home for dancers.
         </h2>
         <p className="mt-6 text-muted-foreground leading-relaxed">
-          Discovery Outpost is a professional dance environment built on technique, confidence,
+          Discovery Outpost is a dance environment built on technique, confidence,
           discipline, and creativity. Our students grow as artists and as people —
           guided by experienced instructors who care about every step of the journey.
         </p>
@@ -250,7 +250,7 @@ function Gallery() {
 const testimonials = [
   { q: "My child's confidence has grown so much.", a: "— Parent" },
   { q: "Amazing instructors and a very welcoming studio.", a: "— Parent" },
-  { q: "Professional training with a supportive environment.", a: "— Student" },
+  { q: "Quality training with a supportive environment.", a: "— Student" },
 ];
 
 function Testimonials() {

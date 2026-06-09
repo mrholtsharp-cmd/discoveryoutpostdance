@@ -27,8 +27,10 @@ export function SiteHeader() {
       }`}
     >
       <div className="mx-auto max-w-6xl px-4 sm:px-6 h-16 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2 group">
-          <Logo className="h-9 w-9 transition-transform group-hover:scale-105" />
+        <Link to="/" className="flex items-center gap-3 group">
+          <div className="h-12 w-12 rounded-full overflow-hidden transition-transform group-hover:scale-105">
+            <Logo className="h-full w-full object-cover" />
+          </div>
           <span className="font-display text-base sm:text-lg leading-tight">
             Discovery Outpost
             <span className="hidden sm:inline text-muted-foreground font-sans text-xs tracking-widest uppercase ml-2">
