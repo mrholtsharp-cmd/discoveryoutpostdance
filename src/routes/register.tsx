@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { submitRegistration } from "@/lib/registrations.functions";
+import { submitRegistration, requestEmailVerification } from "@/lib/registrations.functions";
 import { listSchedule } from "@/lib/schedule.functions";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
@@ -43,6 +43,7 @@ function RegisterPage() {
   const sched = useServerFn(listSchedule);
   const schedule = useQuery({ queryKey: ["schedule"], queryFn: () => sched() });
   const submit = useServerFn(submitRegistration);
+  const requestCode = useServerFn(requestEmailVerification);
 
   const [form, setForm] = useState({
     student_name: "",
@@ -57,7 +58,21 @@ function RegisterPage() {
     is_trial: !!trial,
     selected_class_id: "",
   });
+  const [step, setStep] = useState<"form" | "verify">("form");
+  const [code, setCode] = useState("");
+  const [codeDelivery, setCodeDelivery] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  const sendCode = useMutation({
+    mutationFn: () => requestCode({ data: { email: form.email } }),
+    onSuccess: (res) => {
+      setStep("verify");
+      setCodeDelivery(res.delivery);
+      if (res.delivery === "email") toast.success("Verification code sent to your email");
+      else toast.info("Code generated. Email delivery isn't set up yet — contact the studio to verify.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const m = useMutation({
     mutationFn: () =>
@@ -73,6 +88,7 @@ function RegisterPage() {
           emergency_contact: form.emergency_contact,
           medical_notes: form.medical_notes || null,
           is_trial: form.is_trial,
+          verification_code: code,
         },
       }),
     onSuccess: () => { setDone(true); toast.success("Registration submitted!"); },
@@ -112,9 +128,47 @@ function RegisterPage() {
         </p>
 
         <Card className="mt-10 p-6 sm:p-8">
+          {step === "verify" ? (
+            <form
+              className="space-y-6"
+              onSubmit={(e) => { e.preventDefault(); m.mutate(); }}
+            >
+              <div>
+                <h2 className="font-display text-2xl">Verify your email</h2>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {codeDelivery === "email"
+                    ? <>We sent a 6-digit code to <strong>{form.email}</strong>. Enter it below to finish.</>
+                    : <>A 6-digit code has been generated for <strong>{form.email}</strong>. Email delivery isn't configured yet — please contact the studio to receive your code.</>}
+                </p>
+              </div>
+              <Field label="Verification Code">
+                <Input
+                  required
+                  inputMode="numeric"
+                  pattern="\d{6}"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  className="text-center text-2xl tracking-[0.5em]"
+                />
+              </Field>
+              <div className="flex flex-col-reverse sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <Button type="button" variant="ghost" onClick={() => setStep("form")}>Back to form</Button>
+                <div className="flex gap-3">
+                  <Button type="button" variant="outline" disabled={sendCode.isPending} onClick={() => sendCode.mutate()}>
+                    {sendCode.isPending ? "Resending..." : "Resend code"}
+                  </Button>
+                  <Button type="submit" disabled={m.isPending || code.length !== 6} className="rounded-full px-8 h-11">
+                    {m.isPending ? "Submitting..." : "Verify & Submit"}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          ) : (
           <form
             className="space-y-6"
-            onSubmit={(e) => { e.preventDefault(); m.mutate(); }}
+            onSubmit={(e) => { e.preventDefault(); sendCode.mutate(); }}
           >
             <div className="grid sm:grid-cols-2 gap-4">
               <Field label="Student Name">
@@ -175,10 +229,11 @@ function RegisterPage() {
               This is a trial class request
             </label>
 
-            <Button type="submit" disabled={m.isPending} className="rounded-full px-8 h-11 w-full sm:w-auto">
-              {m.isPending ? "Submitting..." : "Submit Registration"}
+            <Button type="submit" disabled={sendCode.isPending} className="rounded-full px-8 h-11 w-full sm:w-auto">
+              {sendCode.isPending ? "Sending code..." : "Continue — Verify Email"}
             </Button>
           </form>
+          )}
         </Card>
       </section>
     </Layout>
