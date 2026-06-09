@@ -84,6 +84,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:site_name", content: "Discovery Outpost Performing Arts Dance" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
+      { property: "og:title", content: "Discovery Outpost Performing Arts Dance" },
+      { name: "twitter:title", content: "Discovery Outpost Performing Arts Dance" },
+      { property: "og:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
+      { name: "twitter:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/77bd722f-7e15-476b-9306-201ad8ca91e8/id-preview-1f08af20--ab34fa19-5c49-4bf2-a51f-32a874a727a3.lovable.app-1781036943318.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/77bd722f-7e15-476b-9306-201ad8ca91e8/id-preview-1f08af20--ab34fa19-5c49-4bf2-a51f-32a874a727a3.lovable.app-1781036943318.png" },
     ],
     links: [
       {
