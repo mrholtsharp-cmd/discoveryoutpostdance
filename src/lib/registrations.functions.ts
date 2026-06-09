@@ -92,27 +92,10 @@ export const requestEmailVerification = createServerFn({ method: "POST" })
       throw new Error("Could not issue verification code.");
     }
 
-    // Send via Lovable email infrastructure if available; otherwise log code so admins can deliver manually.
-    let delivery: "email" | "skipped" = "skipped";
-    try {
-      const mod: any = await import(/* @vite-ignore */ "@lovable.dev/email-js" as string).catch(() => null);
-      if (mod && process.env.LOVABLE_API_KEY && process.env.SENDER_DOMAIN) {
-        const sender = mod.createEmailSender?.({ apiKey: process.env.LOVABLE_API_KEY });
-        if (sender) {
-          await sender.send({
-            from: `Discovery Outpost <noreply@${process.env.SENDER_DOMAIN}>`,
-            to: email,
-            subject: "Your Discovery Outpost verification code",
-            html: `<p>Your verification code is <strong style="font-size:24px;letter-spacing:4px">${code}</strong></p><p>This code expires in 15 minutes.</p>`,
-            text: `Your verification code is ${code}. It expires in 15 minutes.`,
-          });
-          delivery = "email";
-        }
-      }
-    } catch (e) {
-      await logAudit({ event_type: "verify_failed", email, error_message: `email_send: ${(e as Error).message}` });
-    }
-
+    // Email delivery is wired through Lovable's transactional email pipeline,
+    // which requires the email domain to be set up. Until then we still create
+    // the code + audit row so the flow can be exercised end-to-end by admins.
+    const delivery: "email" | "pending_email_setup" = "pending_email_setup";
     await logAudit({ event_type: "verify_requested", email, metadata: { delivery } });
     return { ok: true, delivery };
   });
