@@ -20,7 +20,10 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
       { property: "og:url", content: "/" },
     ],
-    links: [{ rel: "canonical", href: "/" }],
+    links: [
+      { rel: "canonical", href: "/" },
+      { rel: "preload", as: "image", href: logoAsset.url, fetchPriority: "high" },
+    ],
   }),
   component: Index,
 });
