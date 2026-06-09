@@ -67,8 +67,8 @@ function RegisterPage() {
     mutationFn: () => requestCode({ data: { email: form.email } }),
     onSuccess: (res) => {
       setStep("verify");
-      setCodeDelivery(res.delivery);
-      if (res.delivery === "email") toast.success("Verification code sent to your email");
+      setCodeDelivery(res.delivery as string);
+      if ((res.delivery as string) === "email") toast.success("Verification code sent to your email");
       else toast.info("Code generated. Email delivery isn't set up yet — contact the studio to verify.");
     },
     onError: (e: Error) => toast.error(e.message),
