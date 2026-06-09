@@ -50,7 +50,7 @@ async function logAudit(args: {
     user_agent: ua,
     error_message: args.error_message ?? null,
     registration_id: args.registration_id ?? null,
-    metadata: args.metadata ?? null,
+    metadata: (args.metadata ?? null) as never,
   });
 }
 
@@ -95,10 +95,10 @@ export const requestEmailVerification = createServerFn({ method: "POST" })
     // Send via Lovable email infrastructure if available; otherwise log code so admins can deliver manually.
     let delivery: "email" | "skipped" = "skipped";
     try {
-      const mod = await import("@lovable.dev/email-js").catch(() => null);
-      if (mod && process.env.LOVABLE_API_KEY) {
-        const sender = (mod as any).createEmailSender?.({ apiKey: process.env.LOVABLE_API_KEY });
-        if (sender && process.env.SENDER_DOMAIN) {
+      const mod: any = await import(/* @vite-ignore */ "@lovable.dev/email-js" as string).catch(() => null);
+      if (mod && process.env.LOVABLE_API_KEY && process.env.SENDER_DOMAIN) {
+        const sender = mod.createEmailSender?.({ apiKey: process.env.LOVABLE_API_KEY });
+        if (sender) {
           await sender.send({
             from: `Discovery Outpost <noreply@${process.env.SENDER_DOMAIN}>`,
             to: email,
@@ -110,7 +110,6 @@ export const requestEmailVerification = createServerFn({ method: "POST" })
         }
       }
     } catch (e) {
-      // Don't leak — still audit, surface generic error if nothing else worked
       await logAudit({ event_type: "verify_failed", email, error_message: `email_send: ${(e as Error).message}` });
     }
 
