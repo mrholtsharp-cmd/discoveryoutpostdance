@@ -8,8 +8,8 @@ export function Logo({ className = "h-10 w-10", priority = false }: { className?
       className={className}
       loading="eager"
       fetchPriority={priority ? "high" : undefined}
-      width={priority ? 680 : undefined}
-      height={priority ? 680 : undefined}
+      width={680}
+      height={680}
     />
   );
 }
