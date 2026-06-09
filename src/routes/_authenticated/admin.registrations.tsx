@@ -89,7 +89,7 @@ function RegistrationsAdminPage() {
   useEffect(() => {
     if (qLocal === search.q) return;
     const t = setTimeout(() => {
-      navigate({ search: (p) => ({ ...p, q: qLocal, page: 1 }) });
+      navigate({ search: (p: SearchParams) => ({ ...p, q: qLocal, page: 1 }) });
     }, 300);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -132,7 +132,7 @@ function RegistrationsAdminPage() {
             <Select
               value={search.cls || "all"}
               onValueChange={(v) =>
-                navigate({ search: (p) => ({ ...p, cls: v === "all" ? "" : v, page: 1 }) })
+                navigate({ search: (p: SearchParams) => ({ ...p, cls: v === "all" ? "" : v, page: 1 }) })
               }
             >
               <SelectTrigger><SelectValue placeholder="Class" /></SelectTrigger>
@@ -144,7 +144,7 @@ function RegistrationsAdminPage() {
             <Select
               value={search.lvl || "all"}
               onValueChange={(v) =>
-                navigate({ search: (p) => ({ ...p, lvl: v === "all" ? "" : v, page: 1 }) })
+                navigate({ search: (p: SearchParams) => ({ ...p, lvl: v === "all" ? "" : v, page: 1 }) })
               }
             >
               <SelectTrigger><SelectValue placeholder="Level" /></SelectTrigger>
@@ -156,7 +156,7 @@ function RegistrationsAdminPage() {
             <Select
               value={search.trial}
               onValueChange={(v: "all" | "yes" | "no") =>
-                navigate({ search: (p) => ({ ...p, trial: v, page: 1 }) })
+                navigate({ search: (p: SearchParams) => ({ ...p, trial: v, page: 1 }) })
               }
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -169,7 +169,7 @@ function RegistrationsAdminPage() {
             <Select
               value={search.sort}
               onValueChange={(v: "newest" | "oldest") =>
-                navigate({ search: (p) => ({ ...p, sort: v, page: 1 }) })
+                navigate({ search: (p: SearchParams) => ({ ...p, sort: v, page: 1 }) })
               }
             >
               <SelectTrigger><SelectValue /></SelectTrigger>
@@ -187,7 +187,7 @@ function RegistrationsAdminPage() {
                 type="date"
                 value={search.from}
                 onChange={(e) =>
-                  navigate({ search: (p) => ({ ...p, from: e.target.value, page: 1 }) })
+                  navigate({ search: (p: SearchParams) => ({ ...p, from: e.target.value, page: 1 }) })
                 }
               />
             </div>
@@ -197,7 +197,7 @@ function RegistrationsAdminPage() {
                 type="date"
                 value={search.to}
                 onChange={(e) =>
-                  navigate({ search: (p) => ({ ...p, to: e.target.value, page: 1 }) })
+                  navigate({ search: (p: SearchParams) => ({ ...p, to: e.target.value, page: 1 }) })
                 }
               />
             </div>
@@ -298,7 +298,7 @@ function RegistrationsAdminPage() {
               <Select
                 value={String(search.size)}
                 onValueChange={(v) =>
-                  navigate({ search: (p) => ({ ...p, size: Number(v) as 25 | 50 | 100, page: 1 }) })
+                  navigate({ search: (p: SearchParams) => ({ ...p, size: Number(v) as 25 | 50 | 100, page: 1 }) })
                 }
               >
                 <SelectTrigger className="w-20"><SelectValue /></SelectTrigger>
@@ -317,7 +317,7 @@ function RegistrationsAdminPage() {
                 variant="outline"
                 size="icon"
                 disabled={search.page <= 1}
-                onClick={() => navigate({ search: (p) => ({ ...p, page: p.page - 1 }) })}
+                onClick={() => navigate({ search: (p: SearchParams) => ({ ...p, page: p.page - 1 }) })}
               >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
@@ -325,7 +325,7 @@ function RegistrationsAdminPage() {
                 variant="outline"
                 size="icon"
                 disabled={search.page >= totalPages}
-                onClick={() => navigate({ search: (p) => ({ ...p, page: p.page + 1 }) })}
+                onClick={() => navigate({ search: (p: SearchParams) => ({ ...p, page: p.page + 1 }) })}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
