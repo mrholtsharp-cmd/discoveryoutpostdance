@@ -9,6 +9,7 @@ import { Logo } from "@/components/site/Logo";
 import { ImagePlaceholder } from "@/components/site/ImagePlaceholder";
 import { listSchedule } from "@/lib/schedule.functions";
 import { Check, Sparkles, Music2, Star, Phone, Mail, MapPin, Instagram, Facebook } from "lucide-react";
+import logoAsset from "@/assets/logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -19,7 +20,10 @@ export const Route = createFileRoute("/")({
       { property: "og:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
       { property: "og:url", content: "/" },
     ],
-    links: [{ rel: "canonical", href: "/" }],
+    links: [
+      { rel: "canonical", href: "/" },
+      { rel: "preload", as: "image", href: logoAsset.url, fetchPriority: "high" },
+    ],
   }),
   component: Index,
 });
@@ -46,7 +50,7 @@ function Hero() {
     <section className="relative overflow-hidden">
       {/* Logo painted first (deepest layer) so the pink color washes over it */}
       <div className="absolute inset-0 -z-20 flex items-center justify-center pointer-events-none" aria-hidden>
-        <Logo className="h-[420px] w-[420px] md:h-[680px] md:w-[680px] opacity-60 animate-float-slow" />
+        <Logo className="h-[420px] w-[420px] md:h-[680px] md:w-[680px] opacity-60 animate-float-slow" priority />
       </div>
       {/* Pink color overlay sits on top of the logo */}
       <div className="absolute inset-0 -z-10 pointer-events-none" aria-hidden>
