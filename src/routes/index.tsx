@@ -9,6 +9,7 @@ import { Logo } from "@/components/site/Logo";
 import { ImagePlaceholder } from "@/components/site/ImagePlaceholder";
 import { listSchedule } from "@/lib/schedule.functions";
 import { Check, Sparkles, Music2, Star, Phone, Mail, MapPin, Instagram, Facebook } from "lucide-react";
+import logoAsset from "@/assets/logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
