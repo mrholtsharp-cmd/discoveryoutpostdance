@@ -8,7 +8,9 @@ export function SiteFooter() {
       <div className="mx-auto max-w-6xl px-6 py-16 grid gap-12 md:grid-cols-4">
         <div className="md:col-span-2">
           <div className="flex items-center gap-3">
-            <Logo className="h-12 w-12" />
+            <div className="h-12 w-12 rounded-full overflow-hidden">
+              <Logo className="h-full w-full object-cover" />
+            </div>
             <div>
               <div className="font-display text-xl">Discovery Outpost</div>
               <div className="text-xs tracking-widest uppercase text-muted-foreground">
@@ -17,7 +19,7 @@ export function SiteFooter() {
             </div>
           </div>
           <p className="mt-6 text-sm text-muted-foreground max-w-sm leading-relaxed">
-            Where confidence meets movement. Professional training in Tap, Jazz, and Ballet
+            Where confidence meets movement. Training in Tap, Jazz, Ballet, and Musical Theater
             for all ages and skill levels.
           </p>
           <div className="mt-6 flex gap-4">
