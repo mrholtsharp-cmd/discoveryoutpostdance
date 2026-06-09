@@ -21,7 +21,7 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/_authenticated/admin" as any, replace: true });
+      if (data.session) navigate({ to: "/admin", replace: true });
     });
   }, [navigate]);
 
@@ -32,7 +32,7 @@ function AuthPage() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Welcome back");
-    navigate({ to: "/_authenticated/admin" as any, replace: true });
+    navigate({ to: "/admin", replace: true });
   }
 
   return (
