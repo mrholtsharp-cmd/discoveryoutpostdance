@@ -16,7 +16,7 @@ import {
 import { listSchedule, upsertScheduleEntry, deleteScheduleEntry } from "@/lib/schedule.functions";
 import { listRegistrations } from "@/lib/registrations.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Trash2, LogOut } from "lucide-react";
 
@@ -113,7 +113,15 @@ function AdminPage() {
         </Card>
 
         <Card className="mt-8 p-6">
-          <h2 className="font-display text-2xl">Registrations</h2>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className="font-display text-2xl">Registrations</h2>
+            <Link
+              to="/admin/registrations"
+              className="text-sm text-primary hover:underline"
+            >
+              View all with search & filters →
+            </Link>
+          </div>
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-muted-foreground border-b border-border">
