@@ -16,7 +16,7 @@ import classImg from "@/assets/dance-class.jpg.asset.json";
 import studioImg from "@/assets/studio-interior.jpg";
 import balletImg from "@/assets/class-ballet.jpg";
 import jazzImg from "@/assets/class-jazz.jpg";
-import tapImg from "@/assets/class-tap.jpg";
+import tapImg from "@/assets/class-tap.jpg.asset.json";
 import musicalImg from "@/assets/class-musical.jpg";
 
 export const Route = createFileRoute("/")({
