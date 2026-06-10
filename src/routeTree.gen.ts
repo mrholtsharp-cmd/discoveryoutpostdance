@@ -21,6 +21,7 @@ import { Route as CheckoutReturnRouteImport } from './routes/checkout.return'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminRegistrationsRouteImport } from './routes/_authenticated/admin.registrations'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as ApiPublicPaymentsWebhookRouteImport } from './routes/api/public/payments/webhook'
 
 const TuitionRoute = TuitionRouteImport.update({
@@ -83,6 +84,12 @@ const AuthenticatedAdminRegistrationsRoute =
     path: '/registrations',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPaymentsWebhookRoute =
   ApiPublicPaymentsWebhookRouteImport.update({
     id: '/api/public/payments/webhook',
@@ -103,6 +110,7 @@ export interface FileRoutesByFullPath {
   '/checkout/return': typeof CheckoutReturnRoute
   '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -117,6 +125,7 @@ export interface FileRoutesByTo {
   '/checkout/return': typeof CheckoutReturnRoute
   '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,6 +142,7 @@ export interface FileRoutesById {
   '/checkout/return': typeof CheckoutReturnRoute
   '/_authenticated/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/api/public/payments/webhook': typeof ApiPublicPaymentsWebhookRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,6 +159,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/admin/registrations'
     | '/api/public/payments/webhook'
+    | '/lovable/email/queue/process'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -163,6 +174,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/admin/registrations'
     | '/api/public/payments/webhook'
+    | '/lovable/email/queue/process'
   id:
     | '__root__'
     | '/'
@@ -178,6 +190,7 @@ export interface FileRouteTypes {
     | '/checkout/return'
     | '/_authenticated/admin/registrations'
     | '/api/public/payments/webhook'
+    | '/lovable/email/queue/process'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -191,6 +204,7 @@ export interface RootRouteChildren {
   TuitionRoute: typeof TuitionRoute
   CheckoutReturnRoute: typeof CheckoutReturnRoute
   ApiPublicPaymentsWebhookRoute: typeof ApiPublicPaymentsWebhookRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -279,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminRegistrationsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/payments/webhook': {
       id: '/api/public/payments/webhook'
       path: '/api/public/payments/webhook'
@@ -324,17 +345,8 @@ const rootRouteChildren: RootRouteChildren = {
   TuitionRoute: TuitionRoute,
   CheckoutReturnRoute: CheckoutReturnRoute,
   ApiPublicPaymentsWebhookRoute: ApiPublicPaymentsWebhookRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
