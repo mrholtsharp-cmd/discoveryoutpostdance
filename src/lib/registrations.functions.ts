@@ -160,8 +160,9 @@ export const submitRegistration = createServerFn({ method: "POST" })
       is_trial: data.is_trial ?? false,
     }).select("id").single();
     if (error) {
+      console.error("[submitRegistration] DB error:", error.message);
       await logAudit({ event_type: "submit_failed", email, error_message: error.message });
-      throw new Error(error.message);
+      throw new Error("Registration could not be saved. Please try again.");
     }
     await logAudit({
       event_type: "submit_success",
