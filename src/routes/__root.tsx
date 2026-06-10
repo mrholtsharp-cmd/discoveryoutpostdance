@@ -89,6 +89,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
       { name: "twitter:description", content: "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels." },
       { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/77bd722f-7e15-476b-9306-201ad8ca91e8/id-preview-1f08af20--ab34fa19-5c49-4bf2-a51f-32a874a727a3.lovable.app-1781036943318.png" },
+      { name: "google-site-verification", content: "j3tBynA8gTP8-r_nTZe9qXaLVwHVmWtB2VIX3MRowzs" },
       { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/77bd722f-7e15-476b-9306-201ad8ca91e8/id-preview-1f08af20--ab34fa19-5c49-4bf2-a51f-32a874a727a3.lovable.app-1781036943318.png" },
     ],
     links: [
@@ -110,7 +111,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         "@type": "DanceSchool",
         "name": "Discovery Outpost Performing Arts Dance",
         "description": "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels.",
-        "url": "/",
+        "url": "https://discoverydance.lovable.app",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "2112 SW E Ave",
+          "addressLocality": "Lawton",
+          "addressRegion": "OK",
+          "postalCode": "73501",
+          "addressCountry": "US"
+        }
       }),
     }],
   }),
