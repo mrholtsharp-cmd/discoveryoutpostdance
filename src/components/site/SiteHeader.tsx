@@ -3,21 +3,29 @@ import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 const nav = [
   { to: "/", label: "Home" },
   { to: "/schedule", label: "Schedule" },
+  { to: "/tuition", label: "Tuition" },
   { to: "/register", label: "Register" },
 ];
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   return (
@@ -49,8 +57,17 @@ export function SiteHeader() {
               {n.label}
             </Link>
           ))}
+          {signedIn ? (
+            <Button asChild size="sm" variant="outline" className="rounded-full px-5">
+              <Link to="/account">My Account</Link>
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="outline" className="rounded-full px-5">
+              <Link to="/auth">Sign in</Link>
+            </Button>
+          )}
           <Button asChild size="sm" className="rounded-full px-5">
-            <Link to="/register">Register Now</Link>
+            <Link to="/tuition">Enroll</Link>
           </Button>
         </nav>
         <button
