@@ -15,7 +15,7 @@ const registrationSchema = z.object({
   medical_notes: z.string().trim().max(1000).optional().nullable(),
   emergency_contact: z.string().trim().min(1).max(200),
   is_trial: z.boolean().optional(),
-  verification_code: z.string().trim().regex(/^\d{6}$/),
+  verification_code: z.string().trim().regex(/^\d{6}$/).optional(),
 });
 
 function hashCode(code: string, email: string): string {
