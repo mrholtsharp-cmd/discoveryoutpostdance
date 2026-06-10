@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useId, cloneElement, isValidElement } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,12 @@ export const Route = createFileRoute("/register")({
   head: () => ({
     meta: [
       { title: "Register — Discovery Outpost Performing Arts Dance" },
-      { name: "description", content: "Register online for Tap, Jazz, Ballet, or Musical Theater classes." },
+      { name: "description", content: "Sign up online for Ballet, Jazz, Tap, or Musical Theater classes at Discovery Outpost. Trial classes available for all ages and skill levels." },
+      { property: "og:title", content: "Register for Dance Classes — Discovery Outpost" },
+      { property: "og:description", content: "Sign up online for Ballet, Jazz, Tap, or Musical Theater classes. Trial classes available for all ages and skill levels." },
+      { property: "og:url", content: "/register" },
     ],
+    links: [{ rel: "canonical", href: "/register" }],
   }),
   validateSearch: (s: Record<string, unknown>) => ({
     trial: s.trial === true || s.trial === "true",
@@ -241,10 +245,14 @@ function RegisterPage() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  const id = useId();
+  const child = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<any>, { id })
+    : children;
   return (
     <div className="space-y-2">
-      <Label className="text-sm">{label}</Label>
-      {children}
+      <Label htmlFor={id} className="text-sm">{label}</Label>
+      {child}
     </div>
   );
 }
