@@ -354,7 +354,7 @@ function Contact() {
       <div className="rounded-2xl overflow-hidden border border-border min-h-[360px]">
         <iframe
           title="Studio map"
-          src="https://www.google.com/maps?q=dance+studio&output=embed"
+          src="https://www.google.com/maps?q=Discovery+Outpost+Performing+Arts,+2112+SW+E+Ave,+Lawton,+OK+73501&output=embed"
           width="100%"
           height="100%"
           loading="lazy"
