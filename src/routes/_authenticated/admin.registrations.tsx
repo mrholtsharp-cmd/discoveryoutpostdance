@@ -72,6 +72,30 @@ export const Route = createFileRoute("/_authenticated/admin/registrations")({
 const CLASSES = ["Tap", "Jazz", "Ballet", "Musical Theater"];
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 
+function csvEscape(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "string" ? v : typeof v === "boolean" ? (v ? "Yes" : "No") : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(rows: Array<Record<string, unknown>>) {
+  const cols = [
+    "created_at", "student_name", "parent_name", "email", "phone", "age",
+    "desired_class", "experience_level", "is_trial", "emergency_contact", "medical_notes",
+  ];
+  const header = cols.join(",");
+  const body = rows.map((r) => cols.map((c) => csvEscape(r[c])).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${header}\n${body}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `registrations-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function RegistrationsAdminPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
