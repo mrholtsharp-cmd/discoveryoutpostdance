@@ -111,7 +111,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         "@type": "DanceSchool",
         "name": "Discovery Outpost Performing Arts Dance",
         "description": "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels.",
-        "url": "/",
+        "url": "https://discoverydance.lovable.app",
+        "address": {
+          "@type": "PostalAddress",
+          "streetAddress": "2112 SW E Ave",
+          "addressLocality": "Lawton",
+          "addressRegion": "OK",
+          "postalCode": "73501",
+          "addressCountry": "US"
+        }
       }),
     }],
   }),
