@@ -46,9 +46,9 @@ export function SiteFooter() {
         <div>
           <h3 className="font-display text-sm uppercase tracking-widest mb-4">Contact</h3>
           <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2"><Phone className="h-4 w-4 mt-0.5 text-primary"/> (555) 123-4567</li>
-            <li className="flex items-start gap-2"><Mail className="h-4 w-4 mt-0.5 text-primary"/> hello@discoveryoutpost.dance</li>
-            <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 text-primary"/> 123 Studio Way<br/>Your City, ST 00000</li>
+            <li className="flex items-start gap-2"><Phone className="h-4 w-4 mt-0.5 text-primary"/><span>(555) 123-4567</span></li>
+            <li className="flex items-start gap-2"><Mail className="h-4 w-4 mt-0.5 text-primary"/><span>hello@discoveryoutpost.dance</span></li>
+            <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 text-primary"/><span>123 Studio Way<br/>Your City, ST 00000</span></li>
           </ul>
         </div>
       </div>

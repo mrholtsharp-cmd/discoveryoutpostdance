@@ -15,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { searchRegistrations } from "@/lib/registrations.functions";
-import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { searchRegistrations, exportRegistrations } from "@/lib/registrations.functions";
+import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { toast } from "sonner";
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -71,10 +72,36 @@ export const Route = createFileRoute("/_authenticated/admin/registrations")({
 const CLASSES = ["Tap", "Jazz", "Ballet", "Musical Theater"];
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 
+function csvEscape(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "string" ? v : typeof v === "boolean" ? (v ? "Yes" : "No") : String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCsv(rows: Array<Record<string, unknown>>) {
+  const cols = [
+    "created_at", "student_name", "parent_name", "email", "phone", "age",
+    "desired_class", "experience_level", "is_trial", "emergency_contact", "medical_notes",
+  ];
+  const header = cols.join(",");
+  const body = rows.map((r) => cols.map((c) => csvEscape(r[c])).join(",")).join("\n");
+  const blob = new Blob([`\uFEFF${header}\n${body}\n`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `registrations-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function RegistrationsAdminPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const fn = useServerFn(searchRegistrations);
+  const exportFn = useServerFn(exportRegistrations);
+  const [exporting, setExporting] = useState(false);
   const deps = depsFrom(search);
 
   const opts = queryOptions({
@@ -119,6 +146,25 @@ function RegistrationsAdminPage() {
               {total} total · showing {startIdx}–{endIdx}
             </p>
           </div>
+          <Button
+            variant="outline"
+            disabled={exporting || total === 0}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const { page: _p, page_size: _s, ...filters } = deps;
+                const rows = await exportFn({ data: filters });
+                downloadCsv(rows);
+                toast.success(`Exported ${rows.length} registration${rows.length === 1 ? "" : "s"}`);
+              } catch (e) {
+                toast.error((e as Error).message);
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <Download className="h-4 w-4" /> {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
         </div>
 
         <Card className="mt-8 p-6">

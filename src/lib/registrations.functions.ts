@@ -259,6 +259,49 @@ export const checkIsAdmin = createServerFn({ method: "GET" })
     return { isAdmin: !!data, userId: context.userId };
   });
 
+const exportSchema = searchRegistrationsSchema.omit({ page: true, page_size: true });
+
+export const exportRegistrations = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => exportSchema.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: isAdmin } = await context.supabase.rpc("has_role", {
+      _user_id: context.userId,
+      _role: "admin",
+    });
+    if (!isAdmin) throw new Error("Forbidden");
+
+    let q = context.supabase
+      .from("registrations")
+      .select("*")
+      .order("created_at", { ascending: data.sort === "oldest" })
+      .limit(10000);
+
+    if (data.search) {
+      const s = data.search.replace(/[%,()]/g, " ").trim();
+      if (s) {
+        const pat = `%${s}%`;
+        q = q.or(
+          `student_name.ilike.${pat},parent_name.ilike.${pat},email.ilike.${pat},phone.ilike.${pat}`,
+        );
+      }
+    }
+    if (data.desired_class) q = q.eq("desired_class", data.desired_class);
+    if (data.experience_level) q = q.eq("experience_level", data.experience_level);
+    if (data.is_trial === "yes") q = q.eq("is_trial", true);
+    if (data.is_trial === "no") q = q.eq("is_trial", false);
+    if (data.date_from) q = q.gte("created_at", new Date(data.date_from).toISOString());
+    if (data.date_to) {
+      const end = new Date(data.date_to);
+      end.setHours(23, 59, 59, 999);
+      q = q.lte("created_at", end.toISOString());
+    }
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(error.message);
+    return rows ?? [];
+  });
+
 export const listAuditLog = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
