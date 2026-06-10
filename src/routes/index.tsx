@@ -64,8 +64,11 @@ function Hero() {
             <Sparkles className="h-3 w-3" /> Discovery Outpost Performing Arts Dance
           </span>
           <h1 className="font-display text-5xl sm:text-6xl md:text-7xl leading-[1.05]">
-            Where Confidence<br/>
-            <em className="italic font-light text-primary">Meets Movement</em>
+            <span className="sr-only">Dance Classes for All Ages — Discovery Outpost Performing Arts</span>
+            <span aria-hidden="true">
+              Where Confidence<br/>
+              <em className="italic font-light text-primary">Meets Movement</em>
+            </span>
           </h1>
           <p className="mt-6 text-lg text-muted-foreground max-w-lg leading-relaxed">
             Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels.
