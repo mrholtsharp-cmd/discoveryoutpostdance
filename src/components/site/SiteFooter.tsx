@@ -46,7 +46,7 @@ export function SiteFooter() {
         <div>
           <h3 className="font-display text-sm uppercase tracking-widest mb-4">Contact</h3>
           <ul className="space-y-3 text-sm text-muted-foreground">
-            <li className="flex items-start gap-2"><Phone className="h-4 w-4 mt-0.5 text-primary"/><span>(940) 631-4534</span></li>
+            <li className="flex items-start gap-2"><Phone className="h-4 w-4 mt-0.5 text-primary"/><span>(940) 249-5390</span></li>
             <li className="flex items-start gap-2"><Mail className="h-4 w-4 mt-0.5 text-primary"/><span>Discoveryoutpostdance@gmail.com</span></li>
             <li className="flex items-start gap-2"><MapPin className="h-4 w-4 mt-0.5 text-primary"/><span>2112 SW E Ave<br/>Lawton, OK 73501</span></li>
           </ul>
