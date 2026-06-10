@@ -336,12 +336,12 @@ function Contact() {
         <span className="text-xs uppercase tracking-[0.25em] text-primary">Visit Us</span>
         <h2 className="font-display text-4xl sm:text-5xl mt-4">Come dance with us.</h2>
         <ul className="mt-8 space-y-4 text-sm">
-          <li className="flex items-start gap-3"><Phone className="h-4 w-4 mt-1 text-primary"/><span>(940) 631-4534</span></li>
+          <li className="flex items-start gap-3"><Phone className="h-4 w-4 mt-1 text-primary"/><span>(940) 249-5390</span></li>
           <li className="flex items-start gap-3"><Mail className="h-4 w-4 mt-1 text-primary"/><span>Discoveryoutpostdance@gmail.com</span></li>
           <li className="flex items-start gap-3"><MapPin className="h-4 w-4 mt-1 text-primary"/><span>2112 SW E Ave, Lawton, OK 73501</span></li>
         </ul>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button asChild className="rounded-full"><a href="tel:5551234567">Call Now</a></Button>
+          <Button asChild className="rounded-full"><a href="tel:+19402495390">Call Now</a></Button>
           <Button asChild variant="outline" className="rounded-full"><Link to="/register">Register Today</Link></Button>
           <Button asChild variant="outline" className="rounded-full"><Link to="/register">Schedule a Trial</Link></Button>
         </div>
