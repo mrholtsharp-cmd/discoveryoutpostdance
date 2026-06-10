@@ -18,7 +18,7 @@ import { listRegistrations } from "@/lib/registrations.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
-import { Trash2, LogOut } from "lucide-react";
+import { Trash2, LogOut, Pencil, Save, X } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin")({
   head: () => ({ meta: [{ title: "Admin — Discovery Outpost" }] }),
@@ -41,6 +41,10 @@ function AdminPage() {
   const [day, setDay] = useState("Monday");
   const [className, setClassName] = useState("");
   const [time, setTime] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{ day: string; class_name: string; time: string; sort_order: number }>({
+    day: "Monday", class_name: "", time: "", sort_order: 0,
+  });
 
   const addM = useMutation({
     mutationFn: () =>
@@ -57,6 +61,22 @@ function AdminPage() {
     mutationFn: (id: string) => del({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["schedule"] }),
   });
+
+  const editM = useMutation({
+    mutationFn: (vars: { id: string } & typeof editDraft) =>
+      upsert({ data: { id: vars.id, day: vars.day, class_name: vars.class_name, time: vars.time, sort_order: vars.sort_order } }),
+    onSuccess: () => {
+      toast.success("Class updated");
+      setEditingId(null);
+      qc.invalidateQueries({ queryKey: ["schedule"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function startEdit(row: { id: string; day: string; class_name: string; time: string; sort_order: number | null }) {
+    setEditingId(row.id);
+    setEditDraft({ day: row.day, class_name: row.class_name, time: row.time, sort_order: row.sort_order ?? 0 });
+  }
 
   async function signOut() {
     await qc.cancelQueries();
@@ -94,18 +114,49 @@ function AdminPage() {
             </Button>
           </div>
           <div className="mt-6 divide-y divide-border">
-            {schedule.data?.map((row) => (
-              <div key={row.id} className="flex items-center justify-between py-3 text-sm">
-                <div className="flex gap-4">
-                  <span className="w-24 font-medium">{row.day}</span>
-                  <span>{row.class_name}</span>
-                  <span className="text-muted-foreground">{row.time}</span>
+            {schedule.data?.map((row) => {
+              const isEditing = editingId === row.id;
+              return (
+                <div key={row.id} className="py-3 text-sm">
+                  {isEditing ? (
+                    <div className="grid sm:grid-cols-[1fr_2fr_2fr_auto] gap-2 items-center">
+                      <Select value={editDraft.day} onValueChange={(v) => setEditDraft((d) => ({ ...d, day: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {DAYS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Input value={editDraft.class_name} onChange={(e) => setEditDraft((d) => ({ ...d, class_name: e.target.value }))} placeholder="Class name" />
+                      <Input value={editDraft.time} onChange={(e) => setEditDraft((d) => ({ ...d, time: e.target.value }))} placeholder="Time" />
+                      <div className="flex gap-1 justify-end">
+                        <Button size="icon" variant="ghost" onClick={() => editM.mutate({ id: row.id, ...editDraft })} disabled={editM.isPending}>
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => setEditingId(null)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div className="flex gap-4 flex-wrap">
+                        <span className="w-24 font-medium">{row.day}</span>
+                        <span>{row.class_name}</span>
+                        <span className="text-muted-foreground">{row.time}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" onClick={() => startEdit(row)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button size="icon" variant="ghost" onClick={() => delM.mutate(row.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <Button size="icon" variant="ghost" onClick={() => delM.mutate(row.id)}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            ))}
+              );
+            })}
             {schedule.data?.length === 0 && (
               <p className="text-sm text-muted-foreground py-4">No classes yet.</p>
             )}
