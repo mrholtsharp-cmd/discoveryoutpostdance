@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Layout } from "@/components/site/Layout";
 import { Logo } from "@/components/site/Logo";
-import { ImagePlaceholder } from "@/components/site/ImagePlaceholder";
 import { listSchedule } from "@/lib/schedule.functions";
 import { Check, Sparkles, Music2, Star, Phone, Mail, MapPin, Instagram, Facebook } from "lucide-react";
 import logoAsset from "@/assets/logo.png.asset.json";
@@ -14,6 +13,11 @@ import recitalImg from "@/assets/dance-recital.jpg.asset.json";
 import stretchImg from "@/assets/dance-stretch.jpg.asset.json";
 import mirrorImg from "@/assets/dance-mirror.jpg.asset.json";
 import classImg from "@/assets/dance-class.jpg.asset.json";
+import studioImg from "@/assets/studio-interior.jpg";
+import balletImg from "@/assets/class-ballet.jpg";
+import jazzImg from "@/assets/class-jazz.jpg";
+import tapImg from "@/assets/class-tap.jpg";
+import musicalImg from "@/assets/class-musical.jpg";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -114,7 +118,9 @@ function Stats() {
 function About() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-24 grid md:grid-cols-2 gap-12 md:gap-16 items-center">
-      <ImagePlaceholder label="Studio" aspect="aspect-[4/5]" />
+      <div className="overflow-hidden rounded-2xl aspect-[4/5] bg-muted">
+        <img src={studioImg} alt="Sunlit dance studio with ballet barre and mirrored wall" loading="lazy" width={1024} height={1280} className="w-full h-full object-cover" />
+      </div>
       <div>
         <span className="text-xs uppercase tracking-[0.25em] text-primary">About the Studio</span>
         <h2 className="font-display text-4xl sm:text-5xl mt-4 leading-tight">
@@ -146,10 +152,10 @@ function About() {
 }
 
 const classData = [
-  { name: "Ballet", desc: "Classical technique, grace, posture, and discipline." },
-  { name: "Jazz", desc: "High-energy movement, rhythm, flexibility, and performance." },
-  { name: "Tap", desc: "Rhythm, musicality, coordination, and timing." },
-  { name: "Musical Theater", desc: "Acting, singing, and dance fused into stage-ready performance." },
+  { name: "Ballet", desc: "Classical technique, grace, posture, and discipline.", img: balletImg, alt: "Pink tutu on wooden hanger" },
+  { name: "Jazz", desc: "High-energy movement, rhythm, flexibility, and performance.", img: jazzImg, alt: "Black jazz shoes and fedora hat on studio floor" },
+  { name: "Tap", desc: "Rhythm, musicality, coordination, and timing.", img: tapImg, alt: "Patent leather tap shoes with metal taps" },
+  { name: "Musical Theater", desc: "Acting, singing, and dance fused into stage-ready performance.", img: musicalImg, alt: "Theater stage with red velvet curtains and spotlight" },
 ];
 
 function Classes() {
@@ -163,7 +169,9 @@ function Classes() {
         <div className="mt-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {classData.map((c) => (
             <Card key={c.name} className="overflow-hidden border-border bg-background hover-lift p-0">
-              <ImagePlaceholder label={c.name} aspect="aspect-[4/5]" className="rounded-none rounded-t-2xl" />
+              <div className="aspect-[4/5] overflow-hidden bg-muted">
+                <img src={c.img} alt={c.alt} loading="lazy" width={1024} height={1280} className="w-full h-full object-cover" />
+              </div>
               <div className="p-6">
                 <h3 className="font-display text-2xl">{c.name}</h3>
                 <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{c.desc}</p>
