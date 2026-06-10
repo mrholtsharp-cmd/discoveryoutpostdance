@@ -15,8 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { searchRegistrations } from "@/lib/registrations.functions";
-import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { searchRegistrations, exportRegistrations } from "@/lib/registrations.functions";
+import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp, Download } from "lucide-react";
+import { toast } from "sonner";
 
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
@@ -75,6 +76,8 @@ function RegistrationsAdminPage() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const fn = useServerFn(searchRegistrations);
+  const exportFn = useServerFn(exportRegistrations);
+  const [exporting, setExporting] = useState(false);
   const deps = depsFrom(search);
 
   const opts = queryOptions({
@@ -119,6 +122,25 @@ function RegistrationsAdminPage() {
               {total} total · showing {startIdx}–{endIdx}
             </p>
           </div>
+          <Button
+            variant="outline"
+            disabled={exporting || total === 0}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const { page: _p, page_size: _s, ...filters } = deps;
+                const rows = await exportFn({ data: filters });
+                downloadCsv(rows);
+                toast.success(`Exported ${rows.length} registration${rows.length === 1 ? "" : "s"}`);
+              } catch (e) {
+                toast.error((e as Error).message);
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            <Download className="h-4 w-4" /> {exporting ? "Exporting…" : "Export CSV"}
+          </Button>
         </div>
 
         <Card className="mt-8 p-6">
