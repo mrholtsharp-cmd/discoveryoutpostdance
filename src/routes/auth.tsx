@@ -18,6 +18,7 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [mode, setMode] = useState<"signin" | "forgot">("signin");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -28,6 +29,16 @@ function AuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    if (mode === "forgot") {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      setLoading(false);
+      if (error) return toast.error(error.message);
+      toast.success("Password reset email sent — check your inbox.");
+      setMode("signin");
+      return;
+    }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return toast.error(error.message);
@@ -39,20 +50,33 @@ function AuthPage() {
     <Layout>
       <section className="mx-auto max-w-md px-6 py-24">
         <Card className="p-8">
-          <h1 className="font-display text-3xl">Studio Sign In</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Admin access only.</p>
+          <h1 className="font-display text-3xl">{mode === "forgot" ? "Reset Password" : "Studio Sign In"}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {mode === "forgot"
+              ? "Enter your admin email and we'll send a password reset link."
+              : "Admin access only."}
+          </p>
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-            </div>
+            {mode === "signin" && (
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input id="password" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+              </div>
+            )}
             <Button type="submit" className="w-full rounded-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? "Please wait..." : mode === "forgot" ? "Send reset link" : "Sign in"}
             </Button>
+            <button
+              type="button"
+              className="text-sm text-muted-foreground hover:text-foreground underline w-full text-center"
+              onClick={() => setMode(mode === "forgot" ? "signin" : "forgot")}
+            >
+              {mode === "forgot" ? "Back to sign in" : "Forgot password?"}
+            </button>
           </form>
         </Card>
       </section>
