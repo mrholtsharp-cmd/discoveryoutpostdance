@@ -111,7 +111,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         "@type": "DanceSchool",
         "name": "Discovery Outpost Performing Arts Dance",
         "description": "Tap, Jazz, Ballet, and Musical Theater classes for all ages and skill levels.",
-        "url": "https://discoverydance.lovable.app",
+        "url": "https://discoveryoutpost.dance",
         "address": {
           "@type": "PostalAddress",
           "streetAddress": "2112 SW E Ave",
