@@ -10,6 +10,10 @@ import { ImagePlaceholder } from "@/components/site/ImagePlaceholder";
 import { listSchedule } from "@/lib/schedule.functions";
 import { Check, Sparkles, Music2, Star, Phone, Mail, MapPin, Instagram, Facebook } from "lucide-react";
 import logoAsset from "@/assets/logo.png.asset.json";
+import recitalImg from "@/assets/dance-recital.jpg.asset.json";
+import stretchImg from "@/assets/dance-stretch.jpg.asset.json";
+import mirrorImg from "@/assets/dance-mirror.jpg.asset.json";
+import classImg from "@/assets/dance-class.jpg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -231,24 +235,25 @@ function RegisterCTA() {
 }
 
 function Gallery() {
-  const tiles = [
-    { label: "Ballet", aspect: "aspect-square" },
-    { label: "Pointe", aspect: "aspect-[4/5]" },
-    { label: "Jazz", aspect: "aspect-[4/5]" },
-    { label: "Tap", aspect: "aspect-square" },
-    { label: "Rehearsal", aspect: "aspect-square" },
-    { label: "Performance", aspect: "aspect-[4/5]" },
-  ];
   return (
     <section className="mx-auto max-w-6xl px-6 py-24">
       <div className="text-center max-w-2xl mx-auto">
         <span className="text-xs uppercase tracking-[0.25em] text-primary">Gallery</span>
         <h2 className="font-display text-4xl sm:text-5xl mt-4">Moments in motion</h2>
       </div>
-      <div className="mt-14 grid grid-cols-2 md:grid-cols-3 gap-4">
-        {tiles.map((t, i) => (
-          <ImagePlaceholder key={i} {...t} />
-        ))}
+      <div className="mt-14 grid grid-cols-1 md:grid-cols-12 gap-4">
+        <figure className="md:col-span-12 overflow-hidden rounded-2xl bg-muted">
+          <img src={recitalImg.url} alt="Dancers on stage at Discovery Dance 2026 recital" loading="lazy" className="w-full h-full object-cover aspect-[16/9] hover:scale-[1.02] transition-transform duration-700" />
+        </figure>
+        <figure className="md:col-span-6 overflow-hidden rounded-2xl bg-muted">
+          <img src={stretchImg.url} alt="Young dancers stretching in class" loading="lazy" className="w-full h-full object-cover aspect-[16/9] hover:scale-[1.02] transition-transform duration-700" />
+        </figure>
+        <figure className="md:col-span-6 overflow-hidden rounded-2xl bg-muted">
+          <img src={mirrorImg.url} alt="Ballet students practicing at the mirror" loading="lazy" className="w-full h-full object-cover aspect-[16/9] hover:scale-[1.02] transition-transform duration-700" />
+        </figure>
+        <figure className="md:col-span-12 overflow-hidden rounded-2xl bg-muted">
+          <img src={classImg.url} alt="Children's ballet class lined up at the barre" loading="lazy" className="w-full h-full object-cover aspect-[21/9] hover:scale-[1.02] transition-transform duration-700" />
+        </figure>
       </div>
     </section>
   );
