@@ -16,7 +16,7 @@ import classImg from "@/assets/dance-class.jpg.asset.json";
 import studioImg from "@/assets/studio-interior.jpg";
 import balletImg from "@/assets/class-ballet.jpg";
 import jazzImg from "@/assets/class-jazz.jpg";
-import tapImg from "@/assets/class-tap.jpg";
+import tapImg from "@/assets/class-tap.jpg.asset.json";
 import musicalImg from "@/assets/class-musical.jpg";
 
 export const Route = createFileRoute("/")({
@@ -154,7 +154,7 @@ function About() {
 const classData = [
   { name: "Ballet", desc: "Classical technique, grace, posture, and discipline.", img: balletImg, alt: "Pink tutu on wooden hanger" },
   { name: "Jazz", desc: "High-energy movement, rhythm, flexibility, and performance.", img: jazzImg, alt: "Black jazz shoes and fedora hat on studio floor" },
-  { name: "Tap", desc: "Rhythm, musicality, coordination, and timing.", img: tapImg, alt: "Patent leather tap shoes with metal taps" },
+  { name: "Tap", desc: "Rhythm, musicality, coordination, and timing.", img: tapImg.url, alt: "Close-up of metal tap plates on the soles of tap shoes" },
   { name: "Musical Theater", desc: "Acting, singing, and dance fused into stage-ready performance.", img: musicalImg, alt: "Theater stage with red velvet curtains and spotlight" },
 ];
 
