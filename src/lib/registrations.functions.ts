@@ -172,6 +172,33 @@ export const submitRegistration = createServerFn({ method: "POST" })
       registration_id: inserted?.id ?? null,
       metadata: { desired_class: data.desired_class, is_trial: data.is_trial ?? false },
     });
+
+    // Notify the studio inbox. Failures here must not break the user-facing
+    // registration flow — the row is already saved.
+    try {
+      const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
+      await enqueueTransactionalEmail({
+        templateName: "registration-notification",
+        idempotencyKey: `registration-${inserted?.id ?? email}-${Date.now()}`,
+        templateData: {
+          student_name: data.student_name,
+          parent_name: data.parent_name,
+          email,
+          phone: data.phone,
+          age: data.age,
+          desired_class: data.desired_class,
+          experience_level: data.experience_level,
+          emergency_contact: data.emergency_contact,
+          medical_notes: data.medical_notes ?? null,
+          is_trial: data.is_trial ?? false,
+          registration_id: inserted?.id,
+          submitted_at: new Date().toISOString(),
+        },
+      });
+    } catch (e) {
+      console.error("[submitRegistration] notification email failed:", (e as Error).message);
+    }
+
     return { ok: true };
   });
 
