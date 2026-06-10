@@ -15,7 +15,7 @@ const registrationSchema = z.object({
   medical_notes: z.string().trim().max(1000).optional().nullable(),
   emergency_contact: z.string().trim().min(1).max(200),
   is_trial: z.boolean().optional(),
-  verification_code: z.string().trim().regex(/^\d{6}$/),
+  verification_code: z.string().trim().regex(/^\d{6}$/).optional(),
 });
 
 function hashCode(code: string, email: string): string {
@@ -106,45 +106,47 @@ export const submitRegistration = createServerFn({ method: "POST" })
     const email = data.email.toLowerCase();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Verify the code
-    const { data: rows, error: lookupErr } = await supabaseAdmin
-      .from("registration_email_verifications")
-      .select("id, code_hash, expires_at, consumed_at, attempts")
-      .eq("email", email)
-      .is("consumed_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (lookupErr) {
-      await logAudit({ event_type: "submit_failed", email, error_message: lookupErr.message });
-      throw new Error("Could not verify code.");
-    }
-    const row = rows?.[0];
-    if (!row) {
-      await logAudit({ event_type: "verify_failed", email, error_message: "no_pending_code" });
-      throw new Error("No active verification code. Please request a new code.");
-    }
-    if (new Date(row.expires_at).getTime() < Date.now()) {
-      await logAudit({ event_type: "verify_failed", email, error_message: "code_expired" });
-      throw new Error("Verification code expired. Please request a new code.");
-    }
-    if ((row.attempts ?? 0) >= 5) {
-      await logAudit({ event_type: "verify_failed", email, error_message: "too_many_attempts" });
-      throw new Error("Too many incorrect attempts. Please request a new code.");
-    }
-    const matches = row.code_hash === hashCode(data.verification_code, email);
-    if (!matches) {
+    // Optional code verification (skipped when no code provided)
+    if (data.verification_code) {
+      const { data: rows, error: lookupErr } = await supabaseAdmin
+        .from("registration_email_verifications")
+        .select("id, code_hash, expires_at, consumed_at, attempts")
+        .eq("email", email)
+        .is("consumed_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (lookupErr) {
+        await logAudit({ event_type: "submit_failed", email, error_message: lookupErr.message });
+        throw new Error("Could not verify code.");
+      }
+      const row = rows?.[0];
+      if (!row) {
+        await logAudit({ event_type: "verify_failed", email, error_message: "no_pending_code" });
+        throw new Error("No active verification code. Please request a new code.");
+      }
+      if (new Date(row.expires_at).getTime() < Date.now()) {
+        await logAudit({ event_type: "verify_failed", email, error_message: "code_expired" });
+        throw new Error("Verification code expired. Please request a new code.");
+      }
+      if ((row.attempts ?? 0) >= 5) {
+        await logAudit({ event_type: "verify_failed", email, error_message: "too_many_attempts" });
+        throw new Error("Too many incorrect attempts. Please request a new code.");
+      }
+      const matches = row.code_hash === hashCode(data.verification_code, email);
+      if (!matches) {
+        await supabaseAdmin
+          .from("registration_email_verifications")
+          .update({ attempts: (row.attempts ?? 0) + 1 })
+          .eq("id", row.id);
+        await logAudit({ event_type: "verify_failed", email, error_message: "bad_code" });
+        throw new Error("Incorrect verification code.");
+      }
       await supabaseAdmin
         .from("registration_email_verifications")
-        .update({ attempts: (row.attempts ?? 0) + 1 })
+        .update({ verified_at: new Date().toISOString(), consumed_at: new Date().toISOString() })
         .eq("id", row.id);
-      await logAudit({ event_type: "verify_failed", email, error_message: "bad_code" });
-      throw new Error("Incorrect verification code.");
+      await logAudit({ event_type: "verify_succeeded", email });
     }
-    await supabaseAdmin
-      .from("registration_email_verifications")
-      .update({ verified_at: new Date().toISOString(), consumed_at: new Date().toISOString() })
-      .eq("id", row.id);
-    await logAudit({ event_type: "verify_succeeded", email });
 
     // Insert registration
     const { data: inserted, error } = await supabaseAdmin.from("registrations").insert({
