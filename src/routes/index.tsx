@@ -320,8 +320,8 @@ function Contact() {
         <span className="text-xs uppercase tracking-[0.25em] text-primary">Visit Us</span>
         <h2 className="font-display text-4xl sm:text-5xl mt-4">Come dance with us.</h2>
         <ul className="mt-8 space-y-4 text-sm">
-          <li className="flex items-start gap-3"><Phone className="h-4 w-4 mt-1 text-primary"/><span>(555) 123-4567</span></li>
-          <li className="flex items-start gap-3"><Mail className="h-4 w-4 mt-1 text-primary"/><span>hello@discoveryoutpost.dance</span></li>
+          <li className="flex items-start gap-3"><Phone className="h-4 w-4 mt-1 text-primary"/><span>(940) 631-4534</span></li>
+          <li className="flex items-start gap-3"><Mail className="h-4 w-4 mt-1 text-primary"/><span>Discoveryoutpostdance@gmail.com</span></li>
           <li className="flex items-start gap-3"><MapPin className="h-4 w-4 mt-1 text-primary"/><span>123 Studio Way, Your City, ST 00000</span></li>
         </ul>
         <div className="mt-8 flex flex-wrap gap-3">
