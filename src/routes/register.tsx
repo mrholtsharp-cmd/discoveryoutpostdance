@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState, useId, cloneElement, isValidElement } from "react";
+import { useState } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -190,14 +190,10 @@ function RegisterPage() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  const id = useId();
-  const child = isValidElement(children)
-    ? cloneElement(children as React.ReactElement<any>, { id })
-    : children;
   return (
     <div className="space-y-2">
-      <Label htmlFor={id} className="text-sm">{label}</Label>
-      {child}
+      <Label className="text-sm">{label}</Label>
+      {children}
     </div>
   );
 }
