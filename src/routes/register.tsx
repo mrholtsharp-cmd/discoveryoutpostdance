@@ -20,6 +20,9 @@ import { submitRegistration } from "@/lib/registrations.functions";
 import { listSchedule } from "@/lib/schedule.functions";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
+import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -42,11 +45,19 @@ export const Route = createFileRoute("/register")({
 const CLASSES = ["Ballet", "Jazz", "Tap", "Musical Theater"] as const;
 const LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
 
+const CLASS_PRICE_IDS: Record<(typeof CLASSES)[number], string> = {
+  Ballet: "tuition_ballet_monthly",
+  Jazz: "tuition_jazz_monthly",
+  Tap: "tuition_tap_monthly",
+  "Musical Theater": "tuition_musical_theatre_monthly",
+};
+
 function RegisterPage() {
   const { trial, class: preselect } = Route.useSearch();
   const sched = useServerFn(listSchedule);
   const schedule = useQuery({ queryKey: ["schedule"], queryFn: () => sched() });
   const submit = useServerFn(submitRegistration);
+  const { openCheckout, closeCheckout, isOpen, checkoutElement } = useStripeCheckout();
 
   const [form, setForm] = useState({
     student_name: "",
@@ -62,6 +73,7 @@ function RegisterPage() {
     selected_class_id: "",
   });
   const [done, setDone] = useState(false);
+  const [paid, setPaid] = useState(false);
 
   const m = useMutation({
     mutationFn: () =>
@@ -88,18 +100,59 @@ function RegisterPage() {
   }
 
   if (done) {
+    if (paid) {
+      return (
+        <Layout>
+          <section className="mx-auto max-w-xl px-6 py-24 text-center">
+            <div className="mx-auto h-16 w-16 rounded-full bg-accent flex items-center justify-center">
+              <Check className="h-8 w-8 text-primary" />
+            </div>
+            <h1 className="font-display text-4xl mt-6">You're all set!</h1>
+            <p className="mt-4 text-muted-foreground">
+              Your registration was received. We'll follow up by email with next steps.
+            </p>
+            <Button asChild className="mt-8 rounded-full"><Link to="/">Back to home</Link></Button>
+          </section>
+        </Layout>
+      );
+    }
     return (
       <Layout>
+        <PaymentTestModeBanner />
         <section className="mx-auto max-w-xl px-6 py-24 text-center">
           <div className="mx-auto h-16 w-16 rounded-full bg-accent flex items-center justify-center">
             <Check className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="font-display text-4xl mt-6">Thank you!</h1>
+          <h1 className="font-display text-4xl mt-6">Registration received!</h1>
           <p className="mt-4 text-muted-foreground">
-            Your registration has been received. We'll be in touch shortly with next steps.
+            Would you like to pay your monthly {form.desired_class} tuition ($80/mo) now,
+            or pay at the studio on your first day?
           </p>
-          <Button asChild className="mt-8 rounded-full"><Link to="/">Back to home</Link></Button>
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+            <Button
+              className="rounded-full px-8 h-11"
+              onClick={() =>
+                openCheckout({
+                  priceId: CLASS_PRICE_IDS[form.desired_class],
+                  customerEmail: form.email,
+                  returnUrl: `${window.location.origin}/register?paid=1`,
+                })
+              }
+            >
+              Pay with card now
+            </Button>
+            <Button variant="outline" className="rounded-full px-8 h-11" onClick={() => setPaid(true)}>
+              Pay at the studio
+            </Button>
+          </div>
+          <Button asChild variant="link" className="mt-6"><Link to="/">Back to home</Link></Button>
         </section>
+        <Dialog open={isOpen} onOpenChange={(v) => !v && closeCheckout()}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader><DialogTitle>Complete your payment</DialogTitle></DialogHeader>
+            {checkoutElement}
+          </DialogContent>
+        </Dialog>
       </Layout>
     );
   }
