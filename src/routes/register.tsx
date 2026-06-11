@@ -20,9 +20,9 @@ import { submitRegistration } from "@/lib/registrations.functions";
 import { listSchedule } from "@/lib/schedule.functions";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
-import { useStripeCheckout } from "@/hooks/useStripeCheckout";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { createCheckoutSession } from "@/utils/payments.functions";
+import { getStripeEnvironment } from "@/lib/stripe";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -57,7 +57,7 @@ function RegisterPage() {
   const sched = useServerFn(listSchedule);
   const schedule = useQuery({ queryKey: ["schedule"], queryFn: () => sched() });
   const submit = useServerFn(submitRegistration);
-  const { openCheckout, closeCheckout, isOpen, checkoutElement } = useStripeCheckout();
+  const [payBusy, setPayBusy] = useState(false);
 
   const [form, setForm] = useState({
     student_name: "",
@@ -74,6 +74,26 @@ function RegisterPage() {
   });
   const [done, setDone] = useState(false);
   const [paid, setPaid] = useState(false);
+
+  async function startPay() {
+    if (payBusy) return;
+    setPayBusy(true);
+    try {
+      const result = await createCheckoutSession({
+        data: {
+          priceId: CLASS_PRICE_IDS[form.desired_class],
+          customerEmail: form.email,
+          returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+          environment: getStripeEnvironment(),
+        },
+      });
+      if ("error" in result) throw new Error(result.error);
+      window.location.href = result.url;
+    } catch (e) {
+      setPayBusy(false);
+      toast.error(e instanceof Error ? e.message : "Could not start checkout");
+    }
+  }
 
   const m = useMutation({
     mutationFn: () =>
@@ -129,17 +149,8 @@ function RegisterPage() {
             or pay at the studio on your first day?
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button
-              className="rounded-full px-8 h-11"
-              onClick={() =>
-                openCheckout({
-                  priceId: CLASS_PRICE_IDS[form.desired_class],
-                  customerEmail: form.email,
-                  returnUrl: `${window.location.origin}/register?paid=1`,
-                })
-              }
-            >
-              Pay with card now
+            <Button className="rounded-full px-8 h-11" onClick={startPay} disabled={payBusy}>
+              {payBusy ? "Starting checkout…" : "Pay with card now"}
             </Button>
             <Button variant="outline" className="rounded-full px-8 h-11" onClick={() => setPaid(true)}>
               Pay at the studio
@@ -147,12 +158,6 @@ function RegisterPage() {
           </div>
           <Button asChild variant="link" className="mt-6"><Link to="/">Back to home</Link></Button>
         </section>
-        <Dialog open={isOpen} onOpenChange={(v) => !v && closeCheckout()}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Complete your payment</DialogTitle></DialogHeader>
-            {checkoutElement}
-          </DialogContent>
-        </Dialog>
       </Layout>
     );
   }
