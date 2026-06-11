@@ -39,7 +39,6 @@ async function resolveOrCreateCustomer(
 }
 
 export const createCheckoutSession = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .inputValidator((data: {
     priceId: string;
     customerEmail?: string;
@@ -50,18 +49,20 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     if (!/^[a-zA-Z0-9_-]+$/.test(data.priceId)) throw new Error("Invalid priceId");
     return data;
   })
-  .handler(async ({ data, context }): Promise<CheckoutSessionResult> => {
+  .handler(async ({ data }): Promise<CheckoutSessionResult> => {
     try {
       const stripe = createStripeClient(data.environment);
-      const userId = context.userId;
-      const email = data.customerEmail ?? (context.claims as { email?: string } | undefined)?.email;
+      const userId = data.userId;
+      const email = data.customerEmail;
 
       const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
       if (!prices.data.length) throw new Error("Price not found");
       const stripePrice = prices.data[0];
       const isRecurring = stripePrice.type === "recurring";
 
-      const customerId = await resolveOrCreateCustomer(stripe, { email, userId });
+      const customerId = (email || userId)
+        ? await resolveOrCreateCustomer(stripe, { email, userId })
+        : undefined;
 
       let productDescription: string | undefined;
       if (!isRecurring) {
@@ -77,11 +78,11 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         mode: isRecurring ? "subscription" : "payment",
         ui_mode: "embedded_page",
         return_url: data.returnUrl,
-        customer: customerId,
+        ...(customerId && { customer: customerId }),
         automatic_tax: { enabled: true },
         ...(!isRecurring && { payment_intent_data: { description: productDescription } }),
-        metadata: { userId },
-        ...(isRecurring && { subscription_data: { metadata: { userId } } }),
+        ...(userId && { metadata: { userId } }),
+        ...(isRecurring && userId && { subscription_data: { metadata: { userId } } }),
       });
 
       return { clientSecret: session.client_secret ?? "" };
