@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { createCheckoutSession } from "@/utils/payments.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
+import { listTuitionItems } from "@/lib/tuition.functions";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -25,45 +27,17 @@ type Item = {
   name: string;
   price: string;
   description: string;
-  recurring?: boolean;
 };
-
-const ONE_TIME: Item[] = [
-  { priceId: "trial_class_onetime", name: "Trial Class", price: "$15", description: "Try a class before enrolling." },
-  { priceId: "annual_registration_onetime", name: "Annual Registration", price: "$35", description: "Required once per year, per family (up to 4 students)." },
-  { priceId: "recital_fee_onetime", name: "Recital Fee", price: "$75", description: "Annual recital fee, per family (up to 4 students)." },
-];
 
 type Plan = "monthly" | "semester";
-
-// Configure each class independently. Change `semesterPrice` / `semesterLabel`
-// per class as needed — they are NOT auto-derived from the monthly price.
-type ClassConfig = {
-  name: string;
-  monthlyPriceId: string;
-  monthlyLabel: string;
-  semesterPriceId: string;
-  semesterLabel: string;
-};
-
-const CLASS_CONFIGS: ClassConfig[] = [
-  { name: "Ballet",          monthlyPriceId: "tuition_ballet_monthly",          monthlyLabel: "$80/mo", semesterPriceId: "tuition_ballet_semester",          semesterLabel: "$320 / semester" },
-  { name: "Jazz",            monthlyPriceId: "tuition_jazz_monthly",            monthlyLabel: "$80/mo", semesterPriceId: "tuition_jazz_semester",            semesterLabel: "$320 / semester" },
-  { name: "Tap",             monthlyPriceId: "tuition_tap_monthly",             monthlyLabel: "$80/mo", semesterPriceId: "tuition_tap_semester",             semesterLabel: "$320 / semester" },
-  { name: "Musical Theatre", monthlyPriceId: "tuition_musical_theatre_monthly", monthlyLabel: "$80/mo", semesterPriceId: "tuition_musical_theatre_semester", semesterLabel: "$320 / semester" },
-];
-
-const CLASSES: { name: string; monthly: Item; semester: Item }[] = CLASS_CONFIGS.map((c) => ({
-  name: c.name,
-  monthly:  { priceId: c.monthlyPriceId,  name: `${c.name} Tuition`, price: c.monthlyLabel,  description: `Monthly tuition for ${c.name}.`, recurring: true },
-  semester: { priceId: c.semesterPriceId, name: `${c.name} Tuition`, price: c.semesterLabel, description: `One-time payment for a 4-month semester of ${c.name}.` },
-}));
 
 function TuitionPage() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [plan, setPlan] = useState<Plan>("monthly");
   const [busy, setBusy] = useState<string | null>(null);
+
+  const items = useQuery({ queryKey: ["tuition-items"], queryFn: () => listTuitionItems() });
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => { setUser(data.user); setReady(true); });
@@ -91,6 +65,12 @@ function TuitionPage() {
     }
   }
 
+  const all = (items.data ?? []).filter((r) => r.active);
+  const monthlyClasses = all.filter((r) => r.kind === "class_monthly");
+  const semesterClasses = all.filter((r) => r.kind === "class_semester");
+  const oneTime = all.filter((r) => r.kind === "one_time");
+  const classesForPlan = plan === "monthly" ? monthlyClasses : semesterClasses;
+
   return (
     <Layout>
       <PaymentTestModeBanner />
@@ -100,6 +80,14 @@ function TuitionPage() {
           Pay tuition and fees online.{" "}
           {!user && (<><Link to="/auth" className="underline text-primary">Sign in or create an account</Link> to check out.</>)}
         </p>
+
+        <Card className="mt-6 p-4 bg-muted/30 border-dashed">
+          <h3 className="font-display text-lg">Prefer to pay in cash?</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            You can bring cash to the studio at your next class. Please put it in a sealed envelope
+            labeled with the student's name and what it's for (e.g. "Ballet — November tuition").
+          </p>
+        </Card>
 
         <div className="mt-12 flex items-center justify-between flex-wrap gap-4">
           <h2 className="font-display text-2xl">Class Tuition</h2>
@@ -126,10 +114,10 @@ function TuitionPage() {
             : "One-time payment covering a full 4-month semester."}
         </p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {CLASSES.map((c) => {
-            const item = plan === "monthly" ? c.monthly : c.semester;
+          {classesForPlan.map((r) => {
+            const item: Item = { priceId: r.stripe_price_id, name: `${r.name} Tuition`, price: r.display_price, description: r.description };
             return (
-              <Card key={item.priceId} className="p-6 flex flex-col">
+              <Card key={r.id} className="p-6 flex flex-col">
                 <div className="flex items-baseline justify-between">
                   <h3 className="font-display text-xl">{item.name}</h3>
                   <span className="text-xl font-semibold">{item.price}</span>
@@ -141,23 +129,31 @@ function TuitionPage() {
               </Card>
             );
           })}
+          {items.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
         </div>
 
-        <h2 className="mt-12 font-display text-2xl">One-time Fees</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-3">
-          {ONE_TIME.map((item) => (
-            <Card key={item.priceId} className="p-6 flex flex-col">
-              <div className="flex items-baseline justify-between">
-                <h3 className="font-display text-lg">{item.name}</h3>
-                <span className="text-lg font-semibold">{item.price}</span>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground flex-1">{item.description}</p>
-              <Button onClick={() => handleBuy(item)} variant="outline" className="mt-4 rounded-full" disabled={!ready || busy === item.priceId}>
-                {busy === item.priceId ? "Starting…" : "Pay"}
-              </Button>
-            </Card>
-          ))}
-        </div>
+        {oneTime.length > 0 && (
+          <>
+            <h2 className="mt-12 font-display text-2xl">One-time Fees</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              {oneTime.map((r) => {
+                const item: Item = { priceId: r.stripe_price_id, name: r.name, price: r.display_price, description: r.description };
+                return (
+                  <Card key={r.id} className="p-6 flex flex-col">
+                    <div className="flex items-baseline justify-between">
+                      <h3 className="font-display text-lg">{item.name}</h3>
+                      <span className="text-lg font-semibold">{item.price}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground flex-1">{item.description}</p>
+                    <Button onClick={() => handleBuy(item)} variant="outline" className="mt-4 rounded-full" disabled={!ready || busy === item.priceId}>
+                      {busy === item.priceId ? "Starting…" : "Pay"}
+                    </Button>
+                  </Card>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         <p className="mt-10 text-xs text-muted-foreground">
           To cancel or change a monthly tuition subscription, please contact the studio.
