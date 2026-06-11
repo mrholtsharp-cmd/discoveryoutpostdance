@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
 
-type CheckoutSessionResult = { clientSecret: string } | { error: string };
+type CheckoutSessionResult = { url: string } | { error: string };
 type CancelResult = { ok: true } | { error: string };
 
 async function resolveOrCreateCustomer(
@@ -91,8 +91,9 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: 1 }],
         mode: isRecurring ? "subscription" : "payment",
-        ui_mode: "embedded_page",
-        return_url: data.returnUrl,
+        ui_mode: "hosted",
+        success_url: data.returnUrl,
+        cancel_url: data.returnUrl.split("?")[0].replace(/\/checkout\/return$/, "/tuition"),
         payment_method_types: isRecurring
           ? ["card", "link"]
           : ["card", "cashapp", "paypal"],
@@ -102,8 +103,8 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ...(isRecurring && userId && { subscription_data: { metadata: { userId } } }),
       });
 
-      if (!session.client_secret) throw new Error("Payment form could not be started");
-      return { clientSecret: session.client_secret };
+      if (!session.url) throw new Error("Stripe did not return a checkout URL");
+      return { url: session.url };
     } catch (error) {
       console.error(`Stripe checkout failed during ${step}:`, error);
       return { error: `Payment setup failed during ${step}: ${getStripeErrorMessage(error)}` };
