@@ -58,23 +58,28 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }): Promise<CheckoutSessionResult> => {
+    let step = "start";
     try {
+      step = "create stripe client";
       const stripe = createStripeClient(data.environment);
       const userId = data.userId;
       const email = data.customerEmail;
 
+      step = "look up price";
       const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
       if (!Array.isArray(prices.data)) throw new Error("Price lookup failed");
       if (!prices.data.length) throw new Error("Price not found");
       const stripePrice = prices.data[0];
       const isRecurring = stripePrice.type === "recurring";
 
+      step = "resolve customer";
       const customerId = (email || userId)
         ? await resolveOrCreateCustomer(stripe, { email, userId })
         : undefined;
 
       let productDescription: string | undefined;
       if (!isRecurring) {
+        step = "retrieve product";
         const productId = typeof stripePrice.product === "string"
           ? stripePrice.product
           : stripePrice.product.id;
@@ -82,6 +87,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         productDescription = product.name;
       }
 
+      step = "create checkout session";
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: 1 }],
         mode: isRecurring ? "subscription" : "payment",
@@ -97,6 +103,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       if (!session.client_secret) throw new Error("Payment form could not be started");
       return { clientSecret: session.client_secret };
     } catch (error) {
+      console.error(`Stripe checkout failed during ${step}:`, error);
       return { error: getStripeErrorMessage(error) };
     }
   });
