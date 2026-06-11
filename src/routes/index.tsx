@@ -88,6 +88,9 @@ function Hero() {
             <Button asChild variant="outline" size="lg" className="rounded-full px-8 h-12 text-base border-foreground/20">
               <Link to="/schedule">View Class Schedule</Link>
             </Button>
+            <Button asChild variant="secondary" size="lg" className="rounded-full px-8 h-12 text-base">
+              <Link to="/tuition">Pay Online</Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -235,6 +238,9 @@ function RegisterCTA() {
           </Button>
           <Button asChild size="lg" variant="outline" className="rounded-full px-8 h-12 bg-background/40 backdrop-blur border-foreground/30">
             <Link to="/register" search={{ trial: true } as any}>Book a Trial Class</Link>
+          </Button>
+          <Button asChild size="lg" variant="outline" className="rounded-full px-8 h-12 bg-background/40 backdrop-blur border-foreground/30">
+            <Link to="/tuition">Pay Tuition</Link>
           </Button>
         </div>
       </div>
