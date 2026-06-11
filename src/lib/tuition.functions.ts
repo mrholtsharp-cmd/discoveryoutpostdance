@@ -26,11 +26,23 @@ const itemSchema = z.object({
 });
 
 async function ensureAdmin(context: { supabase: any; userId: string }) {
-  const { data: isAdmin } = await context.supabase.rpc("has_role", {
+  const { data: isAdmin, error: rpcError } = await context.supabase.rpc("has_role", {
     _user_id: context.userId,
     _role: "admin",
   });
-  if (!isAdmin) throw new Error("Forbidden");
+  if (isAdmin) return;
+
+  if (rpcError) console.error("Admin role check failed:", rpcError.message);
+
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: roleRow, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", context.userId)
+    .eq("role", "admin")
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!roleRow) throw new Error("Forbidden");
 }
 
 export const upsertTuitionItem = createServerFn({ method: "POST" })
