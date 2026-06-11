@@ -63,6 +63,7 @@ function AdminTuitionPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [stripePrices, setStripePrices] = useState<Array<{
     stripe_price_id: string; product_name: string; display_price: string;
+    description: string;
     suggested_kind: "class_monthly" | "class_semester" | "one_time";
   }>>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -95,10 +96,11 @@ function AdminTuitionPage() {
           kind: p.suggested_kind,
           name: p.product_name,
           display_price: p.display_price,
+          description: p.description,
           stripe_price_id: p.stripe_price_id,
         })),
       }});
-      toast.success(`Imported ${res.inserted}${res.skipped ? `, skipped ${res.skipped} already present` : ""}`);
+      toast.success(`Synced ${res.inserted} new${res.updated ? `, updated ${res.updated}` : ""}`);
       setSyncOpen(false);
       qc.invalidateQueries({ queryKey: ["tuition-items-admin"] });
       qc.invalidateQueries({ queryKey: ["tuition-items"] });
@@ -256,17 +258,16 @@ function AdminTuitionPage() {
                 {stripePrices.map((p) => {
                   const already = existingIds.has(p.stripe_price_id);
                   return (
-                    <label key={p.stripe_price_id} className={`flex items-center gap-3 py-2 ${already ? "opacity-50" : "cursor-pointer"}`}>
+                    <label key={p.stripe_price_id} className="flex cursor-pointer items-center gap-3 py-2">
                       <Checkbox
                         checked={!!selected[p.stripe_price_id]}
-                        disabled={already}
                         onCheckedChange={(v) => setSelected((s) => ({ ...s, [p.stripe_price_id]: !!v }))}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium">{p.product_name}</div>
                         <div className="text-xs text-muted-foreground">
                           {p.display_price} · <code>{p.stripe_price_id}</code>
-                          {already && " · already added"}
+                          {already && " · will update existing card"}
                         </div>
                       </div>
                     </label>
