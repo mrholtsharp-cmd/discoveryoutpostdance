@@ -94,7 +94,6 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ui_mode: "embedded_page",
         return_url: data.returnUrl,
         ...(customerId && { customer: customerId }),
-        automatic_tax: { enabled: true },
         ...(!isRecurring && { payment_intent_data: { description: productDescription } }),
         ...(userId && { metadata: { userId } }),
         ...(isRecurring && userId && { subscription_data: { metadata: { userId } } }),
