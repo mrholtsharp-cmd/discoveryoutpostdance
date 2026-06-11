@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -16,7 +16,6 @@ import {
 import { listSchedule, upsertScheduleEntry, deleteScheduleEntry } from "@/lib/schedule.functions";
 import { listRegistrations } from "@/lib/registrations.functions";
 import { supabase } from "@/integrations/supabase/client";
-import { useNavigate, Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Trash2, LogOut, Pencil, Save, X } from "lucide-react";
 
