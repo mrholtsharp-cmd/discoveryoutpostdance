@@ -91,7 +91,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: 1 }],
         mode: isRecurring ? "subscription" : "payment",
-        ui_mode: "hosted",
+        ui_mode: "hosted" as any,
         success_url: data.returnUrl,
         cancel_url: data.returnUrl.split("?")[0].replace(/\/checkout\/return$/, "/tuition"),
         payment_method_types: isRecurring
