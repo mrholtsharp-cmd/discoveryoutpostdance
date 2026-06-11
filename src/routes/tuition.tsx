@@ -35,28 +35,28 @@ const ONE_TIME: Item[] = [
 
 type Plan = "monthly" | "semester";
 
-const CLASSES: { name: string; monthly: Item; semester: Item }[] = [
-  {
-    name: "Ballet",
-    monthly: { priceId: "tuition_ballet_monthly", name: "Ballet Tuition", price: "$80/mo", description: "Monthly tuition for Ballet.", recurring: true },
-    semester: { priceId: "tuition_ballet_semester", name: "Ballet Tuition", price: "$320 / semester", description: "One-time payment for 4 months of Ballet." },
-  },
-  {
-    name: "Jazz",
-    monthly: { priceId: "tuition_jazz_monthly", name: "Jazz Tuition", price: "$80/mo", description: "Monthly tuition for Jazz.", recurring: true },
-    semester: { priceId: "tuition_jazz_semester", name: "Jazz Tuition", price: "$320 / semester", description: "One-time payment for 4 months of Jazz." },
-  },
-  {
-    name: "Tap",
-    monthly: { priceId: "tuition_tap_monthly", name: "Tap Tuition", price: "$80/mo", description: "Monthly tuition for Tap.", recurring: true },
-    semester: { priceId: "tuition_tap_semester", name: "Tap Tuition", price: "$320 / semester", description: "One-time payment for 4 months of Tap." },
-  },
-  {
-    name: "Musical Theatre",
-    monthly: { priceId: "tuition_musical_theatre_monthly", name: "Musical Theatre Tuition", price: "$80/mo", description: "Monthly tuition for Musical Theatre.", recurring: true },
-    semester: { priceId: "tuition_musical_theatre_semester", name: "Musical Theatre Tuition", price: "$320 / semester", description: "One-time payment for 4 months of Musical Theatre." },
-  },
+// Configure each class independently. Change `semesterPrice` / `semesterLabel`
+// per class as needed — they are NOT auto-derived from the monthly price.
+type ClassConfig = {
+  name: string;
+  monthlyPriceId: string;
+  monthlyLabel: string;
+  semesterPriceId: string;
+  semesterLabel: string;
+};
+
+const CLASS_CONFIGS: ClassConfig[] = [
+  { name: "Ballet",          monthlyPriceId: "tuition_ballet_monthly",          monthlyLabel: "$80/mo", semesterPriceId: "tuition_ballet_semester",          semesterLabel: "$320 / semester" },
+  { name: "Jazz",            monthlyPriceId: "tuition_jazz_monthly",            monthlyLabel: "$80/mo", semesterPriceId: "tuition_jazz_semester",            semesterLabel: "$320 / semester" },
+  { name: "Tap",             monthlyPriceId: "tuition_tap_monthly",             monthlyLabel: "$80/mo", semesterPriceId: "tuition_tap_semester",             semesterLabel: "$320 / semester" },
+  { name: "Musical Theatre", monthlyPriceId: "tuition_musical_theatre_monthly", monthlyLabel: "$80/mo", semesterPriceId: "tuition_musical_theatre_semester", semesterLabel: "$320 / semester" },
 ];
+
+const CLASSES: { name: string; monthly: Item; semester: Item }[] = CLASS_CONFIGS.map((c) => ({
+  name: c.name,
+  monthly:  { priceId: c.monthlyPriceId,  name: `${c.name} Tuition`, price: c.monthlyLabel,  description: `Monthly tuition for ${c.name}.`, recurring: true },
+  semester: { priceId: c.semesterPriceId, name: `${c.name} Tuition`, price: c.semesterLabel, description: `One-time payment for a 4-month semester of ${c.name}.` },
+}));
 
 function TuitionPage() {
   const navigate = useNavigate();
