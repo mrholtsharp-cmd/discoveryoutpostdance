@@ -104,7 +104,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       return { clientSecret: session.client_secret };
     } catch (error) {
       console.error(`Stripe checkout failed during ${step}:`, error);
-      return { error: getStripeErrorMessage(error) };
+      return { error: `Payment setup failed during ${step}: ${getStripeErrorMessage(error)}` };
     }
   });
 
