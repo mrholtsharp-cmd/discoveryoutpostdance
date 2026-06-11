@@ -24,16 +24,19 @@ async function resolveOrCreateCustomer(
     }
   }
   if (options.email) {
-    const existing = await stripe.customers.list({ email: options.email, limit: 1 });
-    if (!Array.isArray(existing.data)) throw new Error("Customer lookup failed");
-    if (existing.data.length) {
-      const customer = existing.data[0];
-      if (options.userId && customer.metadata?.userId !== options.userId) {
-        await stripe.customers.update(customer.id, {
-          metadata: { ...customer.metadata, userId: options.userId },
-        });
+    try {
+      const existing = await stripe.customers.list({ email: options.email, limit: 1 });
+      if (Array.isArray(existing.data) && existing.data.length) {
+        const customer = existing.data[0];
+        if (options.userId && customer.metadata?.userId !== options.userId) {
+          await stripe.customers.update(customer.id, {
+            metadata: { ...customer.metadata, userId: options.userId },
+          });
+        }
+        return customer.id;
       }
-      return customer.id;
+    } catch {
+      // If lookup is unavailable, create a customer with the current checkout details.
     }
   }
   const created = await stripe.customers.create({
