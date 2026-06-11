@@ -1,11 +1,12 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { useStripeCheckout } from "@/hooks/useStripeCheckout";
+import { createCheckoutSession } from "@/utils/payments.functions";
+import { getStripeEnvironment } from "@/lib/stripe";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 
@@ -59,11 +60,10 @@ const CLASSES: { name: string; monthly: Item; semester: Item }[] = CLASS_CONFIGS
 }));
 
 function TuitionPage() {
-  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [plan, setPlan] = useState<Plan>("monthly");
-  const { openCheckout, closeCheckout, isOpen, checkoutElement } = useStripeCheckout();
+  const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => { setUser(data.user); setReady(true); });
@@ -71,11 +71,24 @@ function TuitionPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  function handleBuy(item: Item) {
-    openCheckout({
-      priceId: item.priceId,
-      ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
-    });
+  async function handleBuy(item: Item) {
+    if (busy) return;
+    setBusy(item.priceId);
+    try {
+      const result = await createCheckoutSession({
+        data: {
+          priceId: item.priceId,
+          returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+          environment: getStripeEnvironment(),
+          ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
+        },
+      });
+      if ("error" in result) throw new Error(result.error);
+      window.location.href = result.url;
+    } catch (e) {
+      setBusy(null);
+      toast.error(e instanceof Error ? e.message : "Could not start checkout");
+    }
   }
 
   return (
@@ -122,8 +135,8 @@ function TuitionPage() {
                   <span className="text-xl font-semibold">{item.price}</span>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground flex-1">{item.description}</p>
-                <Button onClick={() => handleBuy(item)} className="mt-4 rounded-full" disabled={!ready}>
-                  {plan === "monthly" ? "Enroll & Subscribe" : "Pay Semester"}
+                <Button onClick={() => handleBuy(item)} className="mt-4 rounded-full" disabled={!ready || busy === item.priceId}>
+                  {busy === item.priceId ? "Starting checkout…" : plan === "monthly" ? "Enroll & Subscribe" : "Pay Semester"}
                 </Button>
               </Card>
             );
@@ -139,8 +152,8 @@ function TuitionPage() {
                 <span className="text-lg font-semibold">{item.price}</span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground flex-1">{item.description}</p>
-              <Button onClick={() => handleBuy(item)} variant="outline" className="mt-4 rounded-full" disabled={!ready}>
-                Pay
+              <Button onClick={() => handleBuy(item)} variant="outline" className="mt-4 rounded-full" disabled={!ready || busy === item.priceId}>
+                {busy === item.priceId ? "Starting…" : "Pay"}
               </Button>
             </Card>
           ))}
@@ -150,13 +163,6 @@ function TuitionPage() {
           To cancel or change a monthly tuition subscription, please contact the studio.
         </p>
       </section>
-
-      <Dialog open={isOpen} onOpenChange={(v) => !v && closeCheckout()}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Complete your payment</DialogTitle></DialogHeader>
-          {checkoutElement}
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 }
