@@ -63,6 +63,7 @@ function AdminTuitionPage() {
   const [syncOpen, setSyncOpen] = useState(false);
   const [stripePrices, setStripePrices] = useState<Array<{
     stripe_price_id: string; product_name: string; display_price: string;
+    description: string;
     suggested_kind: "class_monthly" | "class_semester" | "one_time";
   }>>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
@@ -95,10 +96,11 @@ function AdminTuitionPage() {
           kind: p.suggested_kind,
           name: p.product_name,
           display_price: p.display_price,
+          description: p.description,
           stripe_price_id: p.stripe_price_id,
         })),
       }});
-      toast.success(`Imported ${res.inserted}${res.skipped ? `, skipped ${res.skipped} already present` : ""}`);
+      toast.success(`Synced ${res.inserted} new${res.updated ? `, updated ${res.updated}` : ""}`);
       setSyncOpen(false);
       qc.invalidateQueries({ queryKey: ["tuition-items-admin"] });
       qc.invalidateQueries({ queryKey: ["tuition-items"] });
