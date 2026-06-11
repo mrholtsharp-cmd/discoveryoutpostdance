@@ -258,17 +258,16 @@ function AdminTuitionPage() {
                 {stripePrices.map((p) => {
                   const already = existingIds.has(p.stripe_price_id);
                   return (
-                    <label key={p.stripe_price_id} className={`flex items-center gap-3 py-2 ${already ? "opacity-50" : "cursor-pointer"}`}>
+                    <label key={p.stripe_price_id} className="flex cursor-pointer items-center gap-3 py-2">
                       <Checkbox
                         checked={!!selected[p.stripe_price_id]}
-                        disabled={already}
                         onCheckedChange={(v) => setSelected((s) => ({ ...s, [p.stripe_price_id]: !!v }))}
                       />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium">{p.product_name}</div>
                         <div className="text-xs text-muted-foreground">
                           {p.display_price} · <code>{p.stripe_price_id}</code>
-                          {already && " · already added"}
+                          {already && " · will update existing card"}
                         </div>
                       </div>
                     </label>
