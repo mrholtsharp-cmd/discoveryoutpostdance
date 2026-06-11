@@ -13,14 +13,19 @@ async function resolveOrCreateCustomer(
     throw new Error("Invalid userId");
   }
   if (options.userId) {
-    const found = await stripe.customers.search({
-      query: `metadata['userId']:'${options.userId}'`,
-      limit: 1,
-    });
-    if (found.data.length) return found.data[0].id;
+    try {
+      const found = await stripe.customers.search({
+        query: `metadata['userId']:'${options.userId}'`,
+        limit: 1,
+      });
+      if (Array.isArray(found.data) && found.data.length) return found.data[0].id;
+    } catch {
+      // Continue with the email lookup/create path below so checkout still works.
+    }
   }
   if (options.email) {
     const existing = await stripe.customers.list({ email: options.email, limit: 1 });
+    if (!Array.isArray(existing.data)) throw new Error("Customer lookup failed");
     if (existing.data.length) {
       const customer = existing.data[0];
       if (options.userId && customer.metadata?.userId !== options.userId) {
@@ -56,6 +61,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       const email = data.customerEmail;
 
       const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
+      if (!Array.isArray(prices.data)) throw new Error("Price lookup failed");
       if (!prices.data.length) throw new Error("Price not found");
       const stripePrice = prices.data[0];
       const isRecurring = stripePrice.type === "recurring";
@@ -85,7 +91,8 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ...(isRecurring && userId && { subscription_data: { metadata: { userId } } }),
       });
 
-      return { clientSecret: session.client_secret ?? "" };
+      if (!session.client_secret) throw new Error("Payment form could not be started");
+      return { clientSecret: session.client_secret };
     } catch (error) {
       return { error: getStripeErrorMessage(error) };
     }
