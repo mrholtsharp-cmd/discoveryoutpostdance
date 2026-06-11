@@ -59,6 +59,7 @@ export type StripePriceOption = {
   stripe_price_id: string;       // lookup_key when present, else Stripe price id
   product_name: string;
   display_price: string;
+  description: string;
   recurring_interval: string | null;  // 'month' | 'year' | null
   suggested_kind: "class_monthly" | "class_semester" | "one_time";
 };
@@ -90,6 +91,7 @@ export const listStripePrices = createServerFn({ method: "POST" })
             stripe_price_id: p.lookup_key || p.id,
             product_name: product.name as string,
             display_price: `${amountStr}${intervalSuffix}`,
+            description: product.description || "",
             recurring_interval: interval,
             suggested_kind,
           };
@@ -105,6 +107,7 @@ const importSchema = z.object({
     kind: z.enum(["class_monthly", "class_semester", "one_time"]),
     name: z.string().min(1).max(80),
     display_price: z.string().min(1).max(40),
+    description: z.string().max(400).default(""),
     stripe_price_id: z.string().min(1).max(80),
   })).min(1).max(50),
 });
@@ -117,21 +120,30 @@ export const importStripePrices = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: existing } = await supabaseAdmin
       .from("tuition_items")
-      .select("stripe_price_id");
-    const existingIds = new Set((existing ?? []).map((r) => r.stripe_price_id));
-    const rows = data.items
-      .filter((it) => !existingIds.has(it.stripe_price_id))
-      .map((it, i) => ({
+      .select("id, stripe_price_id, sort_order");
+    const existingByPriceId = new Map((existing ?? []).map((r) => [r.stripe_price_id, r]));
+    let inserted = 0;
+    let updated = 0;
+
+    for (const [i, it] of data.items.entries()) {
+      const existingRow = existingByPriceId.get(it.stripe_price_id);
+      const payload = {
         kind: it.kind,
         name: it.name,
         display_price: it.display_price,
-        description: "",
+        description: it.description,
         stripe_price_id: it.stripe_price_id,
-        sort_order: 100 + i,
+        sort_order: existingRow?.sort_order ?? 100 + i,
         active: true,
-      }));
-    if (rows.length === 0) return { ok: true, inserted: 0, skipped: data.items.length };
-    const { error } = await supabaseAdmin.from("tuition_items").insert(rows);
-    if (error) throw new Error(error.message);
-    return { ok: true, inserted: rows.length, skipped: data.items.length - rows.length };
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = existingRow
+        ? await supabaseAdmin.from("tuition_items").update(payload).eq("id", existingRow.id)
+        : await supabaseAdmin.from("tuition_items").insert(payload);
+      if (error) throw new Error(error.message);
+      if (existingRow) updated += 1;
+      else inserted += 1;
+    }
+
+    return { ok: true, inserted, updated };
   });
