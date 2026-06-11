@@ -53,14 +53,9 @@ function TuitionPage() {
   }, []);
 
   function handleBuy(item: Item) {
-    if (!user) {
-      navigate({ to: "/auth" });
-      return;
-    }
     openCheckout({
       priceId: item.priceId,
-      userId: user.id,
-      customerEmail: user.email ?? undefined,
+      ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
     });
   }
 
