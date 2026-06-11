@@ -9,7 +9,6 @@ const nav = [
   { to: "/", label: "Home" },
   { to: "/schedule", label: "Schedule" },
   { to: "/tuition", label: "Tuition" },
-  { to: "/tuition", label: "Pay Online" },
   { to: "/register", label: "Register" },
 ];
 
