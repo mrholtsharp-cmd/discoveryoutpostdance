@@ -11,7 +11,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -248,6 +248,9 @@ function AdminTuitionPage() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Sync from Stripe</DialogTitle>
+              <DialogDescription>
+                Choose active Stripe products to add or update on the tuition page.
+              </DialogDescription>
             </DialogHeader>
             {loadingSync ? (
               <p className="text-sm text-muted-foreground py-8 text-center">Loading prices…</p>
