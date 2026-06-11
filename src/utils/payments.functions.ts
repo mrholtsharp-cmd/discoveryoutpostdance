@@ -67,7 +67,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
 
       step = "look up price";
       const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
-      if (!Array.isArray(prices.data)) throw new Error("Price lookup failed");
+      if (!Array.isArray(prices.data)) throw new Error(`Price lookup failed: ${JSON.stringify(prices).slice(0, 300)}`);
       if (!prices.data.length) throw new Error("Price not found");
       const stripePrice = prices.data[0];
       const isRecurring = stripePrice.type === "recurring";
