@@ -13,22 +13,30 @@ async function resolveOrCreateCustomer(
     throw new Error("Invalid userId");
   }
   if (options.userId) {
-    const found = await stripe.customers.search({
-      query: `metadata['userId']:'${options.userId}'`,
-      limit: 1,
-    });
-    if (found.data.length) return found.data[0].id;
+    try {
+      const found = await stripe.customers.search({
+        query: `metadata['userId']:'${options.userId}'`,
+        limit: 1,
+      });
+      if (Array.isArray(found.data) && found.data.length) return found.data[0].id;
+    } catch {
+      // Continue with the email lookup/create path below so checkout still works.
+    }
   }
   if (options.email) {
-    const existing = await stripe.customers.list({ email: options.email, limit: 1 });
-    if (existing.data.length) {
-      const customer = existing.data[0];
-      if (options.userId && customer.metadata?.userId !== options.userId) {
-        await stripe.customers.update(customer.id, {
-          metadata: { ...customer.metadata, userId: options.userId },
-        });
+    try {
+      const existing = await stripe.customers.list({ email: options.email, limit: 1 });
+      if (Array.isArray(existing.data) && existing.data.length) {
+        const customer = existing.data[0];
+        if (options.userId && customer.metadata?.userId !== options.userId) {
+          await stripe.customers.update(customer.id, {
+            metadata: { ...customer.metadata, userId: options.userId },
+          });
+        }
+        return customer.id;
       }
-      return customer.id;
+    } catch {
+      // If lookup is unavailable, create a customer with the current checkout details.
     }
   }
   const created = await stripe.customers.create({
@@ -50,22 +58,28 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }): Promise<CheckoutSessionResult> => {
+    let step = "start";
     try {
+      step = "create stripe client";
       const stripe = createStripeClient(data.environment);
       const userId = data.userId;
       const email = data.customerEmail;
 
+      step = "look up price";
       const prices = await stripe.prices.list({ lookup_keys: [data.priceId] });
+      if (!Array.isArray(prices.data)) throw new Error("Price lookup failed");
       if (!prices.data.length) throw new Error("Price not found");
       const stripePrice = prices.data[0];
       const isRecurring = stripePrice.type === "recurring";
 
+      step = "resolve customer";
       const customerId = (email || userId)
         ? await resolveOrCreateCustomer(stripe, { email, userId })
         : undefined;
 
       let productDescription: string | undefined;
       if (!isRecurring) {
+        step = "retrieve product";
         const productId = typeof stripePrice.product === "string"
           ? stripePrice.product
           : stripePrice.product.id;
@@ -73,21 +87,23 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         productDescription = product.name;
       }
 
+      step = "create checkout session";
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: 1 }],
         mode: isRecurring ? "subscription" : "payment",
         ui_mode: "embedded_page",
         return_url: data.returnUrl,
         ...(customerId && { customer: customerId }),
-        automatic_tax: { enabled: true },
         ...(!isRecurring && { payment_intent_data: { description: productDescription } }),
         ...(userId && { metadata: { userId } }),
         ...(isRecurring && userId && { subscription_data: { metadata: { userId } } }),
       });
 
-      return { clientSecret: session.client_secret ?? "" };
+      if (!session.client_secret) throw new Error("Payment form could not be started");
+      return { clientSecret: session.client_secret };
     } catch (error) {
-      return { error: getStripeErrorMessage(error) };
+      console.error(`Stripe checkout failed during ${step}:`, error);
+      return { error: `Payment setup failed during ${step}: ${getStripeErrorMessage(error)}` };
     }
   });
 
