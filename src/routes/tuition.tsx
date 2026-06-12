@@ -82,10 +82,16 @@ function TuitionPage() {
         </p>
 
         <Card className="mt-6 p-4 bg-muted/30 border-dashed">
-          <h3 className="font-display text-lg">Prefer to pay in cash?</h3>
+          <h3 className="font-display text-lg">Save $5 when you pay in cash</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            You can bring cash to the studio at your next class. Please put it in a sealed envelope
-            labeled with the student's name and what it's for (e.g. "Ballet — November tuition").
+            Get a <span className="font-semibold text-foreground">$5 discount</span> off each tuition payment
+            when you pay in cash. To pay in cash, head to the{" "}
+            <Link to="/register" className="underline text-primary">Register</Link> page and choose
+            "Pay at the studio." Bring cash to your next class in a sealed envelope labeled with
+            the student's name and what it's for (e.g. "Ballet — November tuition").
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Card payments are processed below.
           </p>
         </Card>
 
@@ -110,7 +116,7 @@ function TuitionPage() {
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
           {plan === "monthly"
-            ? "Auto-billed each month. Cancel anytime by contacting the studio."
+            ? "Auto-billed each month for 4 months, then ends automatically. Cancel anytime by contacting the studio."
             : "One-time payment covering a full 4-month semester."}
         </p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">

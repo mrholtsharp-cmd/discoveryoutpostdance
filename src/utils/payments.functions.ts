@@ -88,6 +88,16 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
       }
 
       step = "create checkout session";
+      // Monthly tuition runs for 4 billing cycles, then auto-cancels.
+      // Stripe charges immediately + once per month, so cancel just before
+      // the 5th cycle would post.
+      let subscriptionCancelAt: number | undefined;
+      if (isRecurring) {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 4);
+        d.setDate(d.getDate() - 1);
+        subscriptionCancelAt = Math.floor(d.getTime() / 1000);
+      }
       const session = await stripe.checkout.sessions.create({
         line_items: [{ price: stripePrice.id, quantity: 1 }],
         mode: isRecurring ? "subscription" : "payment",
@@ -100,7 +110,12 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ...(customerId && { customer: customerId }),
         ...(!isRecurring && { payment_intent_data: { description: productDescription } }),
         ...(userId && { metadata: { userId } }),
-        ...(isRecurring && userId && { subscription_data: { metadata: { userId } } }),
+        ...(isRecurring && {
+          subscription_data: {
+            ...(userId && { metadata: { userId } }),
+            ...(subscriptionCancelAt && { cancel_at: subscriptionCancelAt }),
+          },
+        }),
       });
 
       if (!session.url) throw new Error("Stripe did not return a checkout URL");

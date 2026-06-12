@@ -173,6 +173,16 @@ function RegisterPage() {
           Fill out the form below — a studio team member will follow up by email.
         </p>
 
+        <Card className="mt-6 p-4 bg-muted/30 border-dashed">
+          <p className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">Paying by card?</span>{" "}
+            Head to the <Link to="/tuition" className="underline text-primary">Tuition page</Link>{" "}
+            to pay online. Registering here is for students paying{" "}
+            <span className="font-semibold text-foreground">cash at the studio</span> —
+            save <span className="font-semibold text-foreground">$5</span> off each tuition payment.
+          </p>
+        </Card>
+
         <Card className="mt-10 p-6 sm:p-8">
           <form
             className="space-y-6"
