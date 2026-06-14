@@ -4,6 +4,7 @@ import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib
 
 type CheckoutSessionResult = { url: string } | { error: string };
 type CancelResult = { ok: true } | { error: string };
+type CartItemInput = { priceId: string; quantity: number };
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
@@ -153,5 +154,104 @@ export const adminCancelSubscription = createServerFn({ method: "POST" })
       return { ok: true };
     } catch (error) {
       return { error: getStripeErrorMessage(error) };
+    }
+  });
+
+// Multi-item cart checkout. Resolves every priceId (lookup_key or raw
+// price_*) to a Stripe price, then picks subscription vs payment mode:
+// - any recurring price -> subscription mode, one-time prices attached as
+//   add_invoice_items on the first invoice (cancel_at 4 months out, same
+//   as single-item monthly tuition).
+// - all one-time -> payment mode with all line_items.
+export const createCartCheckoutSession = createServerFn({ method: "POST" })
+  .inputValidator((data: {
+    items: CartItemInput[];
+    customerEmail?: string;
+    userId?: string;
+    returnUrl: string;
+    environment: StripeEnv;
+  }) => {
+    if (!Array.isArray(data.items) || data.items.length === 0) {
+      throw new Error("Cart is empty");
+    }
+    for (const item of data.items) {
+      if (!/^[a-zA-Z0-9_-]+$/.test(item.priceId)) throw new Error("Invalid priceId");
+      if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) {
+        throw new Error("Invalid quantity");
+      }
+    }
+    return data;
+  })
+  .handler(async ({ data }): Promise<CheckoutSessionResult> => {
+    let step = "start";
+    try {
+      const stripe = createStripeClient(data.environment);
+
+      step = "look up prices";
+      const resolved = await Promise.all(
+        data.items.map(async (item) => {
+          const price = item.priceId.startsWith("price_")
+            ? await stripe.prices.retrieve(item.priceId)
+            : (await stripe.prices.list({ lookup_keys: [item.priceId] })).data[0];
+          if (!price) throw new Error(`Price not found: ${item.priceId}`);
+          return { price, quantity: item.quantity };
+        }),
+      );
+
+      const recurring = resolved.filter((r) => r.price.type === "recurring");
+      const oneTime = resolved.filter((r) => r.price.type !== "recurring");
+      const isSubscription = recurring.length > 0;
+
+      step = "resolve customer";
+      const customerId = (data.customerEmail || data.userId)
+        ? await resolveOrCreateCustomer(stripe, {
+            email: data.customerEmail,
+            userId: data.userId,
+          })
+        : undefined;
+
+      step = "create checkout session";
+      let subscriptionCancelAt: number | undefined;
+      if (isSubscription) {
+        const d = new Date();
+        d.setMonth(d.getMonth() + 4);
+        d.setDate(d.getDate() - 1);
+        subscriptionCancelAt = Math.floor(d.getTime() / 1000);
+      }
+
+      const lineItems = isSubscription
+        ? recurring.map((r) => ({ price: r.price.id, quantity: r.quantity }))
+        : resolved.map((r) => ({ price: r.price.id, quantity: r.quantity }));
+
+      const session = await stripe.checkout.sessions.create({
+        line_items: lineItems,
+        mode: isSubscription ? "subscription" : "payment",
+        ui_mode: "hosted" as any,
+        success_url: data.returnUrl,
+        cancel_url: data.returnUrl.split("?")[0].replace(/\/checkout\/return$/, "/tuition"),
+        payment_method_types: isSubscription
+          ? ["card", "link"]
+          : ["card", "cashapp", "paypal"],
+        ...(customerId && { customer: customerId }),
+        ...(data.userId && { metadata: { userId: data.userId } }),
+        ...(isSubscription && {
+          subscription_data: {
+            ...(data.userId && { metadata: { userId: data.userId } }),
+            ...(subscriptionCancelAt && { cancel_at: subscriptionCancelAt }),
+            ...(oneTime.length > 0 && {
+              add_invoice_items: oneTime.map((r) => ({
+                price: r.price.id,
+                quantity: r.quantity,
+              })),
+            }),
+          },
+        }),
+      });
+
+      if (!session.url) throw new Error("Stripe did not return a checkout URL");
+      return { url: session.url };
+    } catch (error) {
+      console.error(`Stripe cart checkout failed during ${step}:`, error);
+      return { error: `Payment setup failed during ${step}: ${getStripeErrorMessage(error)}` };
     }
   });
