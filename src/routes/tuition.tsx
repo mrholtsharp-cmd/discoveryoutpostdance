@@ -5,7 +5,7 @@ import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { createCheckoutSession } from "@/utils/payments.functions";
+import { createCartCheckoutSession } from "@/utils/payments.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { listTuitionItems } from "@/lib/tuition.functions";
 import { toast } from "sonner";
@@ -22,20 +22,47 @@ export const Route = createFileRoute("/tuition")({
   component: TuitionPage,
 });
 
-type Item = {
+type Plan = "monthly" | "semester";
+type TuitionRow = {
+  id: string;
+  kind: string;
+  name: string;
+  display_price: string;
+  description: string;
+  stripe_price_id: string;
+  active: boolean;
+};
+type CartEntry = {
   priceId: string;
   name: string;
-  price: string;
-  description: string;
+  display_price: string;
+  unitCents: number;
+  recurring: boolean;
+  quantity: number;
 };
 
-type Plan = "monthly" | "semester";
+function priceToCents(display: string): number {
+  const m = display.match(/\$([\d.,]+)/);
+  if (!m) return 0;
+  return Math.round(parseFloat(m[1].replace(/,/g, "")) * 100);
+}
+function rowToCart(r: TuitionRow): CartEntry {
+  return {
+    priceId: r.stripe_price_id,
+    name: r.name + (r.kind === "class_monthly" ? " (Monthly)" : r.kind === "class_semester" ? " (Semester)" : ""),
+    display_price: r.display_price,
+    unitCents: priceToCents(r.display_price),
+    recurring: r.kind === "class_monthly",
+    quantity: 1,
+  };
+}
 
 function TuitionPage() {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
   const [plan, setPlan] = useState<Plan>("monthly");
-  const [busy, setBusy] = useState<string | null>(null);
+  const [cart, setCart] = useState<CartEntry[]>([]);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
 
   const items = useQuery({ queryKey: ["tuition-items"], queryFn: () => listTuitionItems() });
 
@@ -45,13 +72,39 @@ function TuitionPage() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  async function handleBuy(item: Item) {
-    if (busy) return;
-    setBusy(item.priceId);
+  function addToCart(r: TuitionRow) {
+    setCart((prev) => {
+      const existing = prev.find((e) => e.priceId === r.stripe_price_id);
+      if (existing) {
+        return prev.map((e) =>
+          e.priceId === r.stripe_price_id ? { ...e, quantity: Math.min(e.quantity + 1, 20) } : e,
+        );
+      }
+      return [...prev, rowToCart(r)];
+    });
+    toast.success(`Added ${r.name}`);
+  }
+  function removeFromCart(priceId: string) {
+    setCart((prev) => prev.filter((e) => e.priceId !== priceId));
+  }
+  function setQty(priceId: string, qty: number) {
+    setCart((prev) =>
+      prev.map((e) => (e.priceId === priceId ? { ...e, quantity: Math.max(1, Math.min(20, qty)) } : e)),
+    );
+  }
+
+  async function checkout() {
+    if (checkoutBusy || cart.length === 0) return;
+    const hasRecurring = cart.some((e) => e.recurring);
+    if (hasRecurring && !user) {
+      toast.error("Please sign in to subscribe to monthly tuition.");
+      return;
+    }
+    setCheckoutBusy(true);
     try {
-      const result = await createCheckoutSession({
+      const result = await createCartCheckoutSession({
         data: {
-          priceId: item.priceId,
+          items: cart.map((e) => ({ priceId: e.priceId, quantity: e.quantity })),
           returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
           environment: getStripeEnvironment(),
           ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
@@ -60,24 +113,29 @@ function TuitionPage() {
       if ("error" in result) throw new Error(result.error);
       window.location.href = result.url;
     } catch (e) {
-      setBusy(null);
+      setCheckoutBusy(false);
       toast.error(e instanceof Error ? e.message : "Could not start checkout");
     }
   }
 
-  const all = (items.data ?? []).filter((r) => r.active);
+  const all = ((items.data ?? []) as TuitionRow[]).filter((r) => r.active);
   const monthlyClasses = all.filter((r) => r.kind === "class_monthly");
   const semesterClasses = all.filter((r) => r.kind === "class_semester");
   const oneTime = all.filter((r) => r.kind === "one_time");
   const classesForPlan = plan === "monthly" ? monthlyClasses : semesterClasses;
 
+  const cartCount = cart.reduce((sum, e) => sum + e.quantity, 0);
+  const cartRecurringTotal = cart.filter((e) => e.recurring).reduce((s, e) => s + e.unitCents * e.quantity, 0);
+  const cartOneTimeTotal = cart.filter((e) => !e.recurring).reduce((s, e) => s + e.unitCents * e.quantity, 0);
+  const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+
   return (
     <Layout>
       <PaymentTestModeBanner />
-      <section className="mx-auto max-w-5xl px-6 py-16">
+      <section className="mx-auto max-w-5xl px-6 py-16 pb-40">
         <h1 className="font-display text-4xl">Tuition & Enrollment</h1>
         <p className="mt-3 text-muted-foreground max-w-2xl">
-          Pay tuition and fees online.{" "}
+          Add classes to your cart and check out together — perfect for siblings or multiple disciplines.{" "}
           {!user && (<><Link to="/auth" className="underline text-primary">Sign in or create an account</Link> to check out.</>)}
         </p>
 
@@ -121,16 +179,21 @@ function TuitionPage() {
         </p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {classesForPlan.map((r) => {
-            const item: Item = { priceId: r.stripe_price_id, name: `${r.name} Tuition`, price: r.display_price, description: r.description };
+            const inCart = cart.find((e) => e.priceId === r.stripe_price_id);
             return (
               <Card key={r.id} className="p-6 flex flex-col">
                 <div className="flex items-baseline justify-between">
-                  <h3 className="font-display text-xl">{item.name}</h3>
-                  <span className="text-xl font-semibold">{item.price}</span>
+                  <h3 className="font-display text-xl">{r.name}</h3>
+                  <span className="text-xl font-semibold">{r.display_price}</span>
                 </div>
-                <p className="mt-2 text-sm text-muted-foreground flex-1">{item.description}</p>
-                <Button onClick={() => handleBuy(item)} className="mt-4 rounded-full" disabled={!ready || busy === item.priceId}>
-                  {busy === item.priceId ? "Starting checkout…" : plan === "monthly" ? "Enroll & Subscribe" : "Pay Semester"}
+                <p className="mt-2 text-sm text-muted-foreground flex-1">{r.description}</p>
+                <Button
+                  onClick={() => addToCart(r)}
+                  className="mt-4 rounded-full"
+                  disabled={!ready}
+                  variant={inCart ? "secondary" : "default"}
+                >
+                  {inCart ? `In cart × ${inCart.quantity} — add another` : "Add to cart"}
                 </Button>
               </Card>
             );
@@ -143,16 +206,21 @@ function TuitionPage() {
             <h2 className="mt-12 font-display text-2xl">One-time Fees</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               {oneTime.map((r) => {
-                const item: Item = { priceId: r.stripe_price_id, name: r.name, price: r.display_price, description: r.description };
+                const inCart = cart.find((e) => e.priceId === r.stripe_price_id);
                 return (
                   <Card key={r.id} className="p-6 flex flex-col">
                     <div className="flex items-baseline justify-between">
-                      <h3 className="font-display text-lg">{item.name}</h3>
-                      <span className="text-lg font-semibold">{item.price}</span>
+                      <h3 className="font-display text-lg">{r.name}</h3>
+                      <span className="text-lg font-semibold">{r.display_price}</span>
                     </div>
-                    <p className="mt-2 text-sm text-muted-foreground flex-1">{item.description}</p>
-                    <Button onClick={() => handleBuy(item)} variant="outline" className="mt-4 rounded-full" disabled={!ready || busy === item.priceId}>
-                      {busy === item.priceId ? "Starting…" : "Pay"}
+                    <p className="mt-2 text-sm text-muted-foreground flex-1">{r.description}</p>
+                    <Button
+                      onClick={() => addToCart(r)}
+                      variant={inCart ? "secondary" : "outline"}
+                      className="mt-4 rounded-full"
+                      disabled={!ready}
+                    >
+                      {inCart ? `In cart × ${inCart.quantity} — add another` : "Add to cart"}
                     </Button>
                   </Card>
                 );
@@ -165,6 +233,74 @@ function TuitionPage() {
           To cancel or change a monthly tuition subscription, please contact the studio.
         </p>
       </section>
+
+      {cart.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 backdrop-blur shadow-lg">
+          <div className="mx-auto max-w-5xl px-4 py-3">
+            <details className="group">
+              <summary className="flex items-center justify-between cursor-pointer list-none gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary text-primary-foreground text-sm font-semibold shrink-0">
+                    {cartCount}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {cartOneTimeTotal > 0 && <>{fmt(cartOneTimeTotal)} today</>}
+                      {cartOneTimeTotal > 0 && cartRecurringTotal > 0 && " · "}
+                      {cartRecurringTotal > 0 && <>{fmt(cartRecurringTotal)}/mo × 4</>}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Tap to review · {cart.length} item{cart.length === 1 ? "" : "s"}</div>
+                  </div>
+                </div>
+                <Button
+                  onClick={(ev) => { ev.preventDefault(); checkout(); }}
+                  className="rounded-full shrink-0"
+                  disabled={checkoutBusy}
+                >
+                  {checkoutBusy ? "Starting…" : "Checkout"}
+                </Button>
+              </summary>
+              <div className="mt-3 max-h-72 overflow-y-auto space-y-2">
+                {cart.map((e) => (
+                  <div key={e.priceId} className="flex items-center gap-2 text-sm border-t border-border pt-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate">{e.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {e.display_price}{e.recurring ? " × 4 months" : ""}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setQty(e.priceId, e.quantity - 1)}
+                        className="w-7 h-7 rounded-full border border-border text-base leading-none"
+                        aria-label="Decrease quantity"
+                      >−</button>
+                      <span className="w-6 text-center tabular-nums">{e.quantity}</span>
+                      <button
+                        type="button"
+                        onClick={() => setQty(e.priceId, e.quantity + 1)}
+                        className="w-7 h-7 rounded-full border border-border text-base leading-none"
+                        aria-label="Increase quantity"
+                      >+</button>
+                      <button
+                        type="button"
+                        onClick={() => removeFromCart(e.priceId)}
+                        className="ml-2 text-xs text-muted-foreground underline"
+                      >Remove</button>
+                    </div>
+                  </div>
+                ))}
+                {cart.some((e) => e.recurring) && (
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Monthly items are billed together each month for 4 months, then end automatically.
+                  </p>
+                )}
+              </div>
+            </details>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
