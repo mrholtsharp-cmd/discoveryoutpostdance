@@ -310,9 +310,7 @@ function TuitionPage() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">
-                      {cartOneTimeTotal > 0 && <>{fmt(cartOneTimeTotal)} today</>}
-                      {cartOneTimeTotal > 0 && cartRecurringTotal > 0 && " · "}
-                      {cartRecurringTotal > 0 && <>{fmt(cartRecurringTotal)}/mo × 4</>}
+                      {todayCents > 0 ? <>{fmt(todayCents)} today</> : <>No charge today</>}
                     </div>
                     <div className="text-xs text-muted-foreground">Tap to review · {cart.length} item{cart.length === 1 ? "" : "s"}</div>
                   </div>
@@ -322,10 +320,62 @@ function TuitionPage() {
                   className="rounded-full shrink-0"
                   disabled={checkoutBusy}
                 >
-                  {checkoutBusy ? "Starting…" : "Checkout"}
+                  {checkoutBusy
+                    ? "Starting…"
+                    : paymentPlan === "invoice" ? "Request invoice" : "Checkout"}
                 </Button>
               </summary>
               <div className="mt-3 max-h-72 overflow-y-auto space-y-2">
+                {/* Payment method selector */}
+                <div className="border-t border-border pt-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Payment method
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["auto_pay", "semester", "invoice"] as const).map((p) => {
+                      const disabled = !allowedPlans.includes(p);
+                      const label = p === "auto_pay" ? "Auto-Pay" : p === "semester" ? "Semester" : "Invoice";
+                      const sub = p === "auto_pay" ? "Monthly card" : p === "semester" ? "Pay upfront" : "Bill me";
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setPaymentPlan(p)}
+                          className={`rounded-lg border px-3 py-2 text-left transition ${
+                            paymentPlan === p
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-background"
+                          } ${disabled ? "opacity-40 cursor-not-allowed" : "hover:border-primary/60"}`}
+                        >
+                          <div className="text-sm font-medium">{label}</div>
+                          <div className="text-[11px] text-muted-foreground">{sub}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{scheduleNote}</p>
+                  {paymentPlan === "semester" && semesterItemsTotal > 0 && season.monthsRemaining < SEASON_TOTAL_MONTHS && season.monthsRemaining > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Original {fmt(semesterItemsTotal)} → <span className="font-semibold text-foreground">{fmt(proratedSemesterTotal)}</span> prorated · You save {fmt(semesterItemsTotal - proratedSemesterTotal)}.
+                    </p>
+                  )}
+                  {paymentPlan === "auto_pay" && schedule.length > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Upcoming charges: {schedule.map((s, i) => (
+                        <span key={s} className="inline-block">
+                          {i > 0 && " · "}
+                          <span className={i === 0 ? "font-semibold text-foreground" : ""}>{s}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {!user && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      <Link to="/auth" className="underline">Sign in</Link> to check out.
+                    </p>
+                  )}
+                </div>
                 {cart.map((e) => (
                   <div key={e.priceId} className="flex items-center gap-2 text-sm border-t border-border pt-2">
                     <div className="flex-1 min-w-0">
@@ -356,11 +406,6 @@ function TuitionPage() {
                     </div>
                   </div>
                 ))}
-                {cart.some((e) => e.recurring) && (
-                  <p className="text-xs text-muted-foreground pt-2">
-                    Monthly items are billed together each month for 4 months, then end automatically.
-                  </p>
-                )}
               </div>
             </details>
           </div>
