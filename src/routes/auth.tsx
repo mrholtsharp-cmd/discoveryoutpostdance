@@ -40,13 +40,21 @@ function AuthPage() {
       return;
     }
     if (mode === "signup") {
-      const { error } = await supabase.auth.signUp({
+      const { data: signUpData, error } = await supabase.auth.signUp({
         email,
         password,
         options: { emailRedirectTo: `${window.location.origin}/account` },
       });
       setLoading(false);
       if (error) return toast.error(error.message);
+      // If email confirmation is required there's no session yet — tell the
+      // user instead of bouncing them to /account where the auth gate kicks
+      // them straight back here.
+      if (!signUpData.session) {
+        toast.success("Account created — check your email to confirm, then sign in.");
+        setMode("signin");
+        return;
+      }
       toast.success("Account created — you're signed in.");
       navigate({ to: "/account", replace: true });
       return;
