@@ -5,12 +5,18 @@ import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { createCartCheckoutSession } from "@/utils/payments.functions";
+import { createCartCheckoutSession, createInvoiceRequest } from "@/utils/payments.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { listTuitionItems } from "@/lib/tuition.functions";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
+import {
+  getSeasonInfo,
+  proratedSemesterCents,
+  autoPayScheduleLabels,
+  SEASON_TOTAL_MONTHS,
+} from "@/lib/season";
 
 export const Route = createFileRoute("/tuition")({
   head: () => ({
@@ -23,6 +29,7 @@ export const Route = createFileRoute("/tuition")({
 });
 
 type Plan = "monthly" | "semester";
+type PaymentPlan = "auto_pay" | "semester" | "invoice";
 type TuitionRow = {
   id: string;
   kind: string;
@@ -63,6 +70,7 @@ function TuitionPage() {
   const [plan, setPlan] = useState<Plan>("monthly");
   const [cart, setCart] = useState<CartEntry[]>([]);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>("auto_pay");
 
   const items = useQuery({ queryKey: ["tuition-items"], queryFn: () => listTuitionItems() });
 
@@ -95,18 +103,33 @@ function TuitionPage() {
 
   async function checkout() {
     if (checkoutBusy || cart.length === 0) return;
-    const hasRecurring = cart.some((e) => e.recurring);
-    if (hasRecurring && !user) {
-      toast.error("Please sign in to subscribe to monthly tuition.");
+    if (!user) {
+      toast.error("Please sign in or create an account to check out.");
       return;
     }
     setCheckoutBusy(true);
     try {
+      if (paymentPlan === "invoice") {
+        const result = await createInvoiceRequest({
+          data: {
+            items: cart.map((e) => ({
+              classLabel: e.name,
+              monthlyAmountCents: e.unitCents * e.quantity,
+            })),
+          },
+        });
+        if ("error" in result) throw new Error(result.error);
+        toast.success("Invoice request received — the studio will email your monthly invoice.");
+        setCart([]);
+        setCheckoutBusy(false);
+        return;
+      }
       const result = await createCartCheckoutSession({
         data: {
           items: cart.map((e) => ({ priceId: e.priceId, quantity: e.quantity })),
           returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
           environment: getStripeEnvironment(),
+          paymentPlan,
           ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
         },
       });
@@ -125,9 +148,41 @@ function TuitionPage() {
   const classesForPlan = plan === "monthly" ? monthlyClasses : semesterClasses;
 
   const cartCount = cart.reduce((sum, e) => sum + e.quantity, 0);
-  const cartRecurringTotal = cart.filter((e) => e.recurring).reduce((s, e) => s + e.unitCents * e.quantity, 0);
-  const cartOneTimeTotal = cart.filter((e) => !e.recurring).reduce((s, e) => s + e.unitCents * e.quantity, 0);
   const fmt = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const monthlyItemsTotal = cart.filter((e) => e.recurring).reduce((s, e) => s + e.unitCents * e.quantity, 0);
+  const semesterItemsTotal = cart.filter((e) => !e.recurring).reduce((s, e) => s + e.unitCents * e.quantity, 0);
+  const season = getSeasonInfo();
+  const schedule = autoPayScheduleLabels();
+  const proratedSemesterTotal = proratedSemesterCents(semesterItemsTotal, season.monthsRemaining);
+
+  // Allowed plans depend on what's in the cart.
+  const canAutoPay = monthlyItemsTotal > 0;
+  const canSemester = semesterItemsTotal > 0;
+  const allowedPlans: PaymentPlan[] = [
+    ...(canAutoPay ? ["auto_pay" as const] : []),
+    ...(canSemester ? ["semester" as const] : []),
+    "invoice" as const,
+  ];
+  // Keep paymentPlan valid if cart contents change.
+  useEffect(() => {
+    if (!allowedPlans.includes(paymentPlan)) {
+      setPaymentPlan(allowedPlans[0] ?? "auto_pay");
+    }
+  }, [allowedPlans.join("|")]);
+
+  // Today vs future-schedule totals for the cart summary.
+  let todayCents = 0;
+  let scheduleNote = "";
+  if (paymentPlan === "auto_pay") {
+    todayCents = monthlyItemsTotal; // first monthly charge happens at checkout
+    scheduleNote = `Then ${monthlyItemsTotal > 0 ? fmt(monthlyItemsTotal) + "/mo" : ""} on ${schedule.slice(1).join(", ") || "future months — none this season"}`;
+  } else if (paymentPlan === "semester") {
+    todayCents = proratedSemesterTotal;
+    scheduleNote = `One-time payment for ${season.monthsRemaining} month${season.monthsRemaining === 1 ? "" : "s"} of the ${season.seasonYear} season`;
+  } else {
+    todayCents = 0;
+    scheduleNote = `Invoice emailed each month — total ${fmt(monthlyItemsTotal)}/mo for ${season.monthsRemaining} month${season.monthsRemaining === 1 ? "" : "s"}`;
+  }
 
   return (
     <Layout>
@@ -135,9 +190,19 @@ function TuitionPage() {
       <section className="mx-auto max-w-5xl px-6 py-16 pb-40">
         <h1 className="font-display text-4xl">Tuition & Enrollment</h1>
         <p className="mt-3 text-muted-foreground max-w-2xl">
-          Add classes to your cart and check out together — perfect for siblings or multiple disciplines.{" "}
+          Add classes to your cart and choose a payment plan at checkout — siblings and multiple disciplines welcome.{" "}
           {!user && (<><Link to="/auth" className="underline text-primary">Sign in or create an account</Link> to check out.</>)}
         </p>
+
+        <Card className="mt-6 p-4 bg-accent/40 border-accent">
+          <h3 className="font-display text-lg">Season runs August – November</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Tuition is only charged during the 4-month season (Aug, Sep, Oct, Nov).
+            {season.monthsRemaining < SEASON_TOTAL_MONTHS && season.monthsRemaining > 0 && (
+              <> Joining mid-season? Semester tuition is automatically prorated to the <span className="font-semibold text-foreground">{season.monthsRemaining} month{season.monthsRemaining === 1 ? "" : "s"} remaining</span> in the {season.seasonYear} season.</>
+            )}
+          </p>
+        </Card>
 
         <Card className="mt-6 p-4 bg-muted/30 border-dashed">
           <h3 className="font-display text-lg">Save $5 when you pay in cash</h3>
@@ -245,9 +310,7 @@ function TuitionPage() {
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">
-                      {cartOneTimeTotal > 0 && <>{fmt(cartOneTimeTotal)} today</>}
-                      {cartOneTimeTotal > 0 && cartRecurringTotal > 0 && " · "}
-                      {cartRecurringTotal > 0 && <>{fmt(cartRecurringTotal)}/mo × 4</>}
+                      {todayCents > 0 ? <>{fmt(todayCents)} today</> : <>No charge today</>}
                     </div>
                     <div className="text-xs text-muted-foreground">Tap to review · {cart.length} item{cart.length === 1 ? "" : "s"}</div>
                   </div>
@@ -257,10 +320,62 @@ function TuitionPage() {
                   className="rounded-full shrink-0"
                   disabled={checkoutBusy}
                 >
-                  {checkoutBusy ? "Starting…" : "Checkout"}
+                  {checkoutBusy
+                    ? "Starting…"
+                    : paymentPlan === "invoice" ? "Request invoice" : "Checkout"}
                 </Button>
               </summary>
               <div className="mt-3 max-h-72 overflow-y-auto space-y-2">
+                {/* Payment method selector */}
+                <div className="border-t border-border pt-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Payment method
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["auto_pay", "semester", "invoice"] as const).map((p) => {
+                      const disabled = !allowedPlans.includes(p);
+                      const label = p === "auto_pay" ? "Auto-Pay" : p === "semester" ? "Semester" : "Invoice";
+                      const sub = p === "auto_pay" ? "Monthly card" : p === "semester" ? "Pay upfront" : "Bill me";
+                      return (
+                        <button
+                          key={p}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => setPaymentPlan(p)}
+                          className={`rounded-lg border px-3 py-2 text-left transition ${
+                            paymentPlan === p
+                              ? "border-primary bg-primary/10"
+                              : "border-border bg-background"
+                          } ${disabled ? "opacity-40 cursor-not-allowed" : "hover:border-primary/60"}`}
+                        >
+                          <div className="text-sm font-medium">{label}</div>
+                          <div className="text-[11px] text-muted-foreground">{sub}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">{scheduleNote}</p>
+                  {paymentPlan === "semester" && semesterItemsTotal > 0 && season.monthsRemaining < SEASON_TOTAL_MONTHS && season.monthsRemaining > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Original {fmt(semesterItemsTotal)} → <span className="font-semibold text-foreground">{fmt(proratedSemesterTotal)}</span> prorated · You save {fmt(semesterItemsTotal - proratedSemesterTotal)}.
+                    </p>
+                  )}
+                  {paymentPlan === "auto_pay" && schedule.length > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Upcoming charges: {schedule.map((s, i) => (
+                        <span key={s} className="inline-block">
+                          {i > 0 && " · "}
+                          <span className={i === 0 ? "font-semibold text-foreground" : ""}>{s}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {!user && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      <Link to="/auth" className="underline">Sign in</Link> to check out.
+                    </p>
+                  )}
+                </div>
                 {cart.map((e) => (
                   <div key={e.priceId} className="flex items-center gap-2 text-sm border-t border-border pt-2">
                     <div className="flex-1 min-w-0">
@@ -291,11 +406,6 @@ function TuitionPage() {
                     </div>
                   </div>
                 ))}
-                {cart.some((e) => e.recurring) && (
-                  <p className="text-xs text-muted-foreground pt-2">
-                    Monthly items are billed together each month for 4 months, then end automatically.
-                  </p>
-                )}
               </div>
             </details>
           </div>

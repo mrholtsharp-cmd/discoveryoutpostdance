@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
+import { getSeasonInfo, proratedSemesterCents, SEASON_TOTAL_MONTHS } from "@/lib/season";
 
 type CheckoutSessionResult = { url: string } | { error: string };
 type CancelResult = { ok: true } | { error: string };
 type CartItemInput = { priceId: string; quantity: number };
+type PaymentPlan = "auto_pay" | "semester" | "invoice";
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
@@ -199,6 +201,7 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
     userId?: string;
     returnUrl: string;
     environment: StripeEnv;
+    paymentPlan?: PaymentPlan;
   }) => {
     if (!Array.isArray(data.items) || data.items.length === 0) {
       throw new Error("Cart is empty");
@@ -208,6 +211,9 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
       if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 20) {
         throw new Error("Invalid quantity");
       }
+    }
+    if (data.paymentPlan && !["auto_pay", "semester", "invoice"].includes(data.paymentPlan)) {
+      throw new Error("Invalid paymentPlan");
     }
     return data;
   })
@@ -229,7 +235,11 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
 
       const recurring = resolved.filter((r) => r.price.type === "recurring");
       const oneTime = resolved.filter((r) => r.price.type !== "recurring");
-      const isSubscription = recurring.length > 0;
+      // Plan resolution: explicit paymentPlan wins, otherwise default by item shape.
+      const plan: PaymentPlan = data.paymentPlan
+        ?? (recurring.length > 0 ? "auto_pay" : "semester");
+      const isSubscription = plan === "auto_pay" && recurring.length > 0;
+      const season = getSeasonInfo();
 
       step = "resolve customer";
       const customerId = (data.customerEmail || data.userId)
@@ -240,17 +250,50 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
         : undefined;
 
       step = "create checkout session";
-      let subscriptionCancelAt: number | undefined;
-      if (isSubscription) {
-        const d = new Date();
-        d.setMonth(d.getMonth() + 4);
-        d.setDate(d.getDate() - 1);
-        subscriptionCancelAt = Math.floor(d.getTime() / 1000);
-      }
+      // Auto-pay subscriptions stop at the end of November of the current
+      // season so parents are never charged outside the Aug–Nov window.
+      const subscriptionCancelAt = isSubscription
+        ? Math.floor(season.seasonEndDate.getTime() / 1000)
+        : undefined;
+
+      // Build line items based on the selected plan.
+      // - auto_pay   → only recurring items (one charge today + one per remaining month)
+      // - semester   → all items as one-time payment, semester items prorated to remaining months
+      // - invoice    → falls back to a one-time Stripe checkout for whatever's in the cart
+      //                (the "monthly invoice" flow is recorded separately via createInvoiceRequest)
+      const buildOneTimeLineItem = async (r: typeof resolved[number]) => {
+        const stripePrice = r.price;
+        const isClassSemester = stripePrice.lookup_key?.endsWith("_semester") ?? false;
+        // Prorate semester-tuition items based on months remaining in the season.
+        if (
+          plan === "semester"
+          && isClassSemester
+          && season.monthsRemaining > 0
+          && season.monthsRemaining < SEASON_TOTAL_MONTHS
+        ) {
+          const fullCents = stripePrice.unit_amount ?? 0;
+          const proratedCents = proratedSemesterCents(fullCents, season.monthsRemaining);
+          const productId = typeof stripePrice.product === "string"
+            ? stripePrice.product
+            : stripePrice.product.id;
+          const product = await stripe.products.retrieve(productId);
+          return {
+            quantity: r.quantity,
+            price_data: {
+              currency: stripePrice.currency,
+              unit_amount: proratedCents,
+              product_data: {
+                name: `${product.name} (Prorated — ${season.monthsRemaining} of ${SEASON_TOTAL_MONTHS} months)`,
+              },
+            },
+          };
+        }
+        return { price: stripePrice.id, quantity: r.quantity };
+      };
 
       const lineItems = isSubscription
         ? recurring.map((r) => ({ price: r.price.id, quantity: r.quantity }))
-        : resolved.map((r) => ({ price: r.price.id, quantity: r.quantity }));
+        : await Promise.all(resolved.map(buildOneTimeLineItem));
 
       const session = await stripe.checkout.sessions.create({
         line_items: lineItems,
@@ -283,4 +326,40 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
       console.error(`Stripe cart checkout failed during ${step}:`, error);
       return { error: `Payment setup failed during ${step}: ${getStripeErrorMessage(error)}` };
     }
+  });
+
+// "Monthly Invoice" plan — no Stripe charge today, just record the intent so
+// the studio can email an invoice for each remaining season month.
+export const createInvoiceRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: {
+    items: Array<{ classLabel: string; monthlyAmountCents: number; studentName?: string }>;
+  }) => {
+    if (!Array.isArray(data.items) || data.items.length === 0) throw new Error("Empty cart");
+    for (const it of data.items) {
+      if (!it.classLabel) throw new Error("Missing class label");
+      if (!Number.isFinite(it.monthlyAmountCents) || it.monthlyAmountCents <= 0) {
+        throw new Error("Invalid amount");
+      }
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; count: number } | { error: string }> => {
+    const { data: userRes } = await context.supabase.auth.getUser();
+    const email = userRes.user?.email;
+    if (!email) return { error: "No email on account" };
+    const season = getSeasonInfo();
+    const rows = data.items.map((it) => ({
+      parent_id: context.userId,
+      email,
+      student_name: it.studentName ?? null,
+      class_label: it.classLabel,
+      monthly_amount_cents: it.monthlyAmountCents,
+      season_year: season.seasonYear,
+      months_remaining: season.monthsRemaining,
+      status: "pending",
+    }));
+    const { error } = await context.supabase.from("invoice_requests").insert(rows);
+    if (error) return { error: error.message };
+    return { ok: true, count: rows.length };
   });

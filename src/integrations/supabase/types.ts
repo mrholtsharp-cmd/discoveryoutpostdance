@@ -128,6 +128,51 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_requests: {
+        Row: {
+          class_label: string
+          created_at: string
+          email: string
+          id: string
+          monthly_amount_cents: number
+          months_remaining: number
+          notes: string | null
+          parent_id: string | null
+          season_year: number
+          status: string
+          student_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          class_label: string
+          created_at?: string
+          email: string
+          id?: string
+          monthly_amount_cents: number
+          months_remaining: number
+          notes?: string | null
+          parent_id?: string | null
+          season_year: number
+          status?: string
+          student_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          class_label?: string
+          created_at?: string
+          email?: string
+          id?: string
+          monthly_amount_cents?: number
+          months_remaining?: number
+          notes?: string | null
+          parent_id?: string | null
+          season_year?: number
+          status?: string
+          student_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       registration_audit_log: {
         Row: {
           created_at: string
