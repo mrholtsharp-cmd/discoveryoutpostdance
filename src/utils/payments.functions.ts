@@ -157,6 +157,35 @@ export const adminCancelSubscription = createServerFn({ method: "POST" })
     }
   });
 
+// Open the Stripe-hosted billing portal so parents can update card on file,
+// download receipts, and cancel subscriptions themselves.
+export const createPortalSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { returnUrl: string; environment: StripeEnv }) => data)
+  .handler(async ({ data, context }): Promise<{ url: string } | { error: string }> => {
+    try {
+      const { data: sub } = await context.supabase
+        .from("subscriptions")
+        .select("stripe_customer_id")
+        .eq("user_id", context.userId)
+        .eq("environment", data.environment)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!sub?.stripe_customer_id) {
+        return { error: "No payment method on file yet. Pay tuition by card first to set one up." };
+      }
+      const stripe = createStripeClient(data.environment);
+      const portal = await stripe.billingPortal.sessions.create({
+        customer: sub.stripe_customer_id,
+        return_url: data.returnUrl,
+      });
+      return { url: portal.url };
+    } catch (error) {
+      return { error: getStripeErrorMessage(error) };
+    }
+  });
+
 // Multi-item cart checkout. Resolves every priceId (lookup_key or raw
 // price_*) to a Stripe price, then picks subscription vs payment mode:
 // - any recurring price -> subscription mode, one-time prices attached as
