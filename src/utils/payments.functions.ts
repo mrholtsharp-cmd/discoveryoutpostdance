@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
+import { getSeasonInfo, proratedSemesterCents, SEASON_TOTAL_MONTHS } from "@/lib/season";
 
 type CheckoutSessionResult = { url: string } | { error: string };
 type CancelResult = { ok: true } | { error: string };
 type CartItemInput = { priceId: string; quantity: number };
+type PaymentPlan = "auto_pay" | "semester" | "invoice";
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
