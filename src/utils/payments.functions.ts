@@ -327,3 +327,39 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
       return { error: `Payment setup failed during ${step}: ${getStripeErrorMessage(error)}` };
     }
   });
+
+// "Monthly Invoice" plan — no Stripe charge today, just record the intent so
+// the studio can email an invoice for each remaining season month.
+export const createInvoiceRequest = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: {
+    items: Array<{ classLabel: string; monthlyAmountCents: number; studentName?: string }>;
+  }) => {
+    if (!Array.isArray(data.items) || data.items.length === 0) throw new Error("Empty cart");
+    for (const it of data.items) {
+      if (!it.classLabel) throw new Error("Missing class label");
+      if (!Number.isFinite(it.monthlyAmountCents) || it.monthlyAmountCents <= 0) {
+        throw new Error("Invalid amount");
+      }
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; count: number } | { error: string }> => {
+    const { data: userRes } = await context.supabase.auth.getUser();
+    const email = userRes.user?.email;
+    if (!email) return { error: "No email on account" };
+    const season = getSeasonInfo();
+    const rows = data.items.map((it) => ({
+      parent_id: context.userId,
+      email,
+      student_name: it.studentName ?? null,
+      class_label: it.classLabel,
+      monthly_amount_cents: it.monthlyAmountCents,
+      season_year: season.seasonYear,
+      months_remaining: season.monthsRemaining,
+      status: "pending",
+    }));
+    const { error } = await context.supabase.from("invoice_requests").insert(rows);
+    if (error) return { error: error.message };
+    return { ok: true, count: rows.length };
+  });
