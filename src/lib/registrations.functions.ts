@@ -16,6 +16,14 @@ const registrationSchema = z.object({
   emergency_contact: z.string().trim().min(1).max(200),
   is_trial: z.boolean().optional(),
   verification_code: z.string().trim().regex(/^\d{6}$/).optional(),
+  program: z.string().trim().max(60).optional().nullable(),
+  selected_class_id: z.string().uuid().optional().nullable(),
+  tuition_item_id: z.string().uuid().optional().nullable(),
+  payment_choice: z.enum(["card", "cash", "invoice"]).optional().nullable(),
+  waiver_signature: z.string().trim().min(2).max(120).optional().nullable(),
+  media_release: z.boolean().optional(),
+  parent_agreement: z.boolean().optional(),
+  date_of_birth: z.string().trim().max(40).optional().nullable(),
 });
 
 function hashCode(code: string, email: string): string {
