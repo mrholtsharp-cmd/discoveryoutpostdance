@@ -257,46 +257,91 @@ export type Database = {
         Row: {
           age: number
           created_at: string
+          date_of_birth: string | null
           desired_class: string
           email: string
           emergency_contact: string
           experience_level: string
           id: string
           is_trial: boolean
+          media_release: boolean
           medical_notes: string | null
+          parent_agreement: boolean
           parent_name: string
+          payment_choice: string | null
+          payment_status: string
           phone: string
+          program: string | null
+          selected_class_id: string | null
           student_name: string
+          tuition_item_id: string | null
+          waiver_signature: string | null
+          waivers_signed_at: string | null
         }
         Insert: {
           age: number
           created_at?: string
+          date_of_birth?: string | null
           desired_class: string
           email: string
           emergency_contact: string
           experience_level: string
           id?: string
           is_trial?: boolean
+          media_release?: boolean
           medical_notes?: string | null
+          parent_agreement?: boolean
           parent_name: string
+          payment_choice?: string | null
+          payment_status?: string
           phone: string
+          program?: string | null
+          selected_class_id?: string | null
           student_name: string
+          tuition_item_id?: string | null
+          waiver_signature?: string | null
+          waivers_signed_at?: string | null
         }
         Update: {
           age?: number
           created_at?: string
+          date_of_birth?: string | null
           desired_class?: string
           email?: string
           emergency_contact?: string
           experience_level?: string
           id?: string
           is_trial?: boolean
+          media_release?: boolean
           medical_notes?: string | null
+          parent_agreement?: boolean
           parent_name?: string
+          payment_choice?: string | null
+          payment_status?: string
           phone?: string
+          program?: string | null
+          selected_class_id?: string | null
           student_name?: string
+          tuition_item_id?: string | null
+          waiver_signature?: string | null
+          waivers_signed_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "registrations_selected_class_id_fkey"
+            columns: ["selected_class_id"]
+            isOneToOne: false
+            referencedRelation: "class_schedule"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registrations_tuition_item_id_fkey"
+            columns: ["tuition_item_id"]
+            isOneToOne: false
+            referencedRelation: "tuition_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       subscriptions: {
         Row: {

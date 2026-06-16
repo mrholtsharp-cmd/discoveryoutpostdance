@@ -16,6 +16,14 @@ const registrationSchema = z.object({
   emergency_contact: z.string().trim().min(1).max(200),
   is_trial: z.boolean().optional(),
   verification_code: z.string().trim().regex(/^\d{6}$/).optional(),
+  program: z.string().trim().max(60).optional().nullable(),
+  selected_class_id: z.string().uuid().optional().nullable(),
+  tuition_item_id: z.string().uuid().optional().nullable(),
+  payment_choice: z.enum(["card", "cash", "invoice"]).optional().nullable(),
+  waiver_signature: z.string().trim().min(2).max(120).optional().nullable(),
+  media_release: z.boolean().optional(),
+  parent_agreement: z.boolean().optional(),
+  date_of_birth: z.string().trim().max(40).optional().nullable(),
 });
 
 function hashCode(code: string, email: string): string {
@@ -160,6 +168,16 @@ export const submitRegistration = createServerFn({ method: "POST" })
       emergency_contact: data.emergency_contact,
       medical_notes: data.medical_notes ?? null,
       is_trial: data.is_trial ?? false,
+      program: data.program ?? null,
+      selected_class_id: data.selected_class_id ?? null,
+      tuition_item_id: data.tuition_item_id ?? null,
+      payment_choice: data.payment_choice ?? null,
+      waiver_signature: data.waiver_signature ?? null,
+      waivers_signed_at: data.waiver_signature ? new Date().toISOString() : null,
+      media_release: data.media_release ?? false,
+      parent_agreement: data.parent_agreement ?? false,
+      date_of_birth: data.date_of_birth ?? null,
+      payment_status: data.payment_choice === "card" ? "awaiting_card" : "pending",
     }).select("id").single();
     if (error) {
       console.error("[submitRegistration] DB error:", error.message);
@@ -199,7 +217,7 @@ export const submitRegistration = createServerFn({ method: "POST" })
       console.error("[submitRegistration] notification email failed:", (e as Error).message);
     }
 
-    return { ok: true };
+    return { ok: true, id: inserted?.id ?? null };
   });
 
 export const listRegistrations = createServerFn({ method: "GET" })
