@@ -248,16 +248,11 @@ export const listMyPayments = createServerFn({ method: "POST" })
           receipt_url: inv.hosted_invoice_url ?? inv.invoice_pdf ?? null,
         });
       }
-      // Only include charges that aren't already represented by an invoice
-      // (matched by payment_intent, which is on both objects).
-      const invoicedPIs = new Set(
-        invoices.data
-          .map((i) => (typeof i.payment_intent === "string" ? i.payment_intent : i.payment_intent?.id))
-          .filter(Boolean) as string[],
-      );
-      for (const ch of charges.data) {
-        const pi = typeof ch.payment_intent === "string" ? ch.payment_intent : ch.payment_intent?.id;
-        if (pi && invoicedPIs.has(pi)) continue;
+      // If the customer has invoices, prefer those (subscriptions). Only
+      // surface raw charges when there are no invoices — typically one-time
+      // registration / cash-equivalent card sales.
+      const useCharges = invoices.data.length === 0;
+      for (const ch of useCharges ? charges.data : []) {
         items.push({
           id: ch.id,
           kind: "charge",
