@@ -248,12 +248,16 @@ export const listMyPayments = createServerFn({ method: "POST" })
           receipt_url: inv.hosted_invoice_url ?? inv.invoice_pdf ?? null,
         });
       }
-      // Only include charges that aren't already represented by an invoice.
-      const invoicedCharges = new Set(
-        invoices.data.map((i) => (typeof i.charge === "string" ? i.charge : i.charge?.id)).filter(Boolean) as string[],
+      // Only include charges that aren't already represented by an invoice
+      // (matched by payment_intent, which is on both objects).
+      const invoicedPIs = new Set(
+        invoices.data
+          .map((i) => (typeof i.payment_intent === "string" ? i.payment_intent : i.payment_intent?.id))
+          .filter(Boolean) as string[],
       );
       for (const ch of charges.data) {
-        if (invoicedCharges.has(ch.id)) continue;
+        const pi = typeof ch.payment_intent === "string" ? ch.payment_intent : ch.payment_intent?.id;
+        if (pi && invoicedPIs.has(pi)) continue;
         items.push({
           id: ch.id,
           kind: "charge",
