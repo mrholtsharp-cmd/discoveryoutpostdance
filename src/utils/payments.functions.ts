@@ -188,6 +188,111 @@ export const createPortalSession = createServerFn({ method: "POST" })
     }
   });
 
+// Parent portal: list invoices and one-time charges for the signed-in user's
+// Stripe customer, in the current environment. Receipts/invoices link out to
+// Stripe-hosted URLs so parents can download PDFs.
+export type PaymentHistoryItem = {
+  id: string;
+  kind: "invoice" | "charge";
+  amount_cents: number;
+  currency: string;
+  status: string;
+  description: string | null;
+  created_at: string;
+  receipt_url: string | null;
+};
+
+export const listMyPayments = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { environment: StripeEnv }) => data)
+  .handler(async ({ data, context }): Promise<{ items: PaymentHistoryItem[] } | { error: string }> => {
+    try {
+      const { data: sub } = await context.supabase
+        .from("subscriptions")
+        .select("stripe_customer_id")
+        .eq("user_id", context.userId)
+        .eq("environment", data.environment)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Fall back to lookup by email if no subscription row exists yet (e.g.
+      // parent paid one-time registration but never started a subscription).
+      const stripe = createStripeClient(data.environment);
+      let customerId = sub?.stripe_customer_id as string | undefined;
+      if (!customerId) {
+        const { data: userRes } = await context.supabase.auth.getUser();
+        const email = userRes.user?.email;
+        if (email) {
+          const found = await stripe.customers.list({ email, limit: 1 });
+          customerId = found.data[0]?.id;
+        }
+      }
+      if (!customerId) return { items: [] };
+
+      const [invoices, charges] = await Promise.all([
+        stripe.invoices.list({ customer: customerId, limit: 24 }),
+        stripe.charges.list({ customer: customerId, limit: 24 }),
+      ]);
+
+      const items: PaymentHistoryItem[] = [];
+      for (const inv of invoices.data) {
+        items.push({
+          id: inv.id ?? `inv_${inv.number ?? Math.random()}`,
+          kind: "invoice",
+          amount_cents: inv.amount_paid ?? inv.amount_due ?? 0,
+          currency: (inv.currency ?? "usd").toUpperCase(),
+          status: inv.status ?? "unknown",
+          description: inv.lines?.data?.[0]?.description ?? inv.description ?? null,
+          created_at: new Date((inv.created ?? 0) * 1000).toISOString(),
+          receipt_url: inv.hosted_invoice_url ?? inv.invoice_pdf ?? null,
+        });
+      }
+      // If the customer has invoices, prefer those (subscriptions). Only
+      // surface raw charges when there are no invoices — typically one-time
+      // registration / cash-equivalent card sales.
+      const useCharges = invoices.data.length === 0;
+      for (const ch of useCharges ? charges.data : []) {
+        items.push({
+          id: ch.id,
+          kind: "charge",
+          amount_cents: ch.amount,
+          currency: ch.currency.toUpperCase(),
+          status: ch.status,
+          description: ch.description ?? null,
+          created_at: new Date(ch.created * 1000).toISOString(),
+          receipt_url: ch.receipt_url ?? null,
+        });
+      }
+      items.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      return { items };
+    } catch (error) {
+      return { error: getStripeErrorMessage(error) };
+    }
+  });
+
+// Parent portal: update phone on the auth user metadata. Email changes go
+// through Supabase's confirmation flow on the client.
+export const updateMyContactInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { phone?: string; parentName?: string }) => {
+    if (data.phone && (data.phone.length < 5 || data.phone.length > 30)) {
+      throw new Error("Phone must be 5–30 characters");
+    }
+    if (data.parentName && (data.parentName.length < 1 || data.parentName.length > 100)) {
+      throw new Error("Name must be 1–100 characters");
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true } | { error: string }> => {
+    const meta: Record<string, string> = {};
+    if (data.phone !== undefined) meta.phone = data.phone;
+    if (data.parentName !== undefined) meta.parent_name = data.parentName;
+    const { error } = await context.supabase.auth.updateUser({ data: meta });
+    if (error) return { error: error.message };
+    return { ok: true };
+  });
+
 // Multi-item cart checkout. Resolves every priceId (lookup_key or raw
 // price_*) to a Stripe price, then picks subscription vs payment mode:
 // - any recurring price -> subscription mode, one-time prices attached as
