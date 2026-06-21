@@ -200,6 +200,7 @@ function RegisterPage() {
             returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
             environment: getStripeEnvironment(),
             paymentPlan: plan === "semester" ? "semester" : "auto_pay",
+            registrationId: regId ?? undefined,
           },
         });
         if ("error" in res) throw new Error(res.error);
