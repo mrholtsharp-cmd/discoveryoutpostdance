@@ -307,6 +307,7 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
     returnUrl: string;
     environment: StripeEnv;
     paymentPlan?: PaymentPlan;
+    registrationId?: string;
   }) => {
     if (!Array.isArray(data.items) || data.items.length === 0) {
       throw new Error("Cart is empty");
@@ -319,6 +320,9 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
     }
     if (data.paymentPlan && !["auto_pay", "semester", "invoice"].includes(data.paymentPlan)) {
       throw new Error("Invalid paymentPlan");
+    }
+    if (data.registrationId && !/^[a-zA-Z0-9-]{1,64}$/.test(data.registrationId)) {
+      throw new Error("Invalid registrationId");
     }
     return data;
   })
@@ -410,10 +414,16 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
           ? ["card", "link"]
           : ["card", "cashapp", "paypal"],
         ...(customerId && { customer: customerId }),
-        ...(data.userId && { metadata: { userId: data.userId } }),
+        metadata: {
+          ...(data.userId && { userId: data.userId }),
+          ...(data.registrationId && { registration_id: data.registrationId }),
+        },
         ...(isSubscription && {
           subscription_data: {
-            ...(data.userId && { metadata: { userId: data.userId } }),
+            metadata: {
+              ...(data.userId && { userId: data.userId }),
+              ...(data.registrationId && { registration_id: data.registrationId }),
+            },
             ...(subscriptionCancelAt && { cancel_at: subscriptionCancelAt }),
             ...(oneTime.length > 0 && {
               add_invoice_items: oneTime.map((r) => ({
@@ -467,4 +477,71 @@ export const createInvoiceRequest = createServerFn({ method: "POST" })
     const { error } = await context.supabase.from("invoice_requests").insert(rows);
     if (error) return { error: error.message };
     return { ok: true, count: rows.length };
+  });
+
+// Admin: issue a refund against an existing charge or payment intent attached
+// to a registration. Either fully refunds or accepts an explicit amount.
+export const adminRefundRegistration = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: {
+    registrationId: string;
+    amountCents?: number;
+    environment: StripeEnv;
+    reason?: "duplicate" | "fraudulent" | "requested_by_customer";
+  }) => {
+    if (!/^[a-zA-Z0-9-]{8,64}$/.test(data.registrationId)) {
+      throw new Error("Invalid registrationId");
+    }
+    if (data.amountCents !== undefined) {
+      if (!Number.isInteger(data.amountCents) || data.amountCents < 50 || data.amountCents > 5_000_000) {
+        throw new Error("Refund amount must be between $0.50 and $50,000");
+      }
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true; refundId: string } | { error: string }> => {
+    const { data: roleRow } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId)
+      .eq("role", "admin")
+      .maybeSingle();
+    if (!roleRow) return { error: "Forbidden — admin only" };
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: reg } = await supabaseAdmin
+      .from("registrations")
+      .select("id, stripe_charge_id, stripe_payment_intent_id, amount_paid_cents, refunded_amount_cents")
+      .eq("id", data.registrationId)
+      .maybeSingle();
+    if (!reg) return { error: "Registration not found" };
+    if (!reg.stripe_charge_id && !reg.stripe_payment_intent_id) {
+      return { error: "No Stripe charge on file for this registration" };
+    }
+
+    try {
+      const stripe = createStripeClient(data.environment);
+      const refund = await stripe.refunds.create({
+        ...(reg.stripe_charge_id
+          ? { charge: reg.stripe_charge_id }
+          : { payment_intent: reg.stripe_payment_intent_id! }),
+        ...(data.amountCents !== undefined && { amount: data.amountCents }),
+        ...(data.reason && { reason: data.reason }),
+      });
+      // The charge.refunded webhook will set the final amounts + send email,
+      // but write a hint now so admin UI updates immediately.
+      await supabaseAdmin
+        .from("registrations")
+        .update({
+          refunded_amount_cents: (reg.refunded_amount_cents ?? 0) + (refund.amount ?? data.amountCents ?? reg.amount_paid_cents ?? 0),
+          refunded_at: new Date().toISOString(),
+          payment_status: refund.amount && reg.amount_paid_cents && refund.amount < reg.amount_paid_cents
+            ? "partially_refunded"
+            : "refunded",
+        })
+        .eq("id", reg.id);
+      return { ok: true, refundId: refund.id };
+    } catch (error) {
+      return { error: getStripeErrorMessage(error) };
+    }
   });
