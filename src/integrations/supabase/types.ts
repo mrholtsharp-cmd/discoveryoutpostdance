@@ -256,6 +256,7 @@ export type Database = {
       registrations: {
         Row: {
           age: number
+          amount_paid_cents: number | null
           created_at: string
           date_of_birth: string | null
           desired_class: string
@@ -264,15 +265,25 @@ export type Database = {
           experience_level: string
           id: string
           is_trial: boolean
+          last_payment_error: string | null
           media_release: boolean
           medical_notes: string | null
+          paid_at: string | null
           parent_agreement: boolean
           parent_name: string
           payment_choice: string | null
+          payment_failure_count: number
+          payment_failure_flagged: boolean
           payment_status: string
           phone: string
           program: string | null
+          refunded_amount_cents: number | null
+          refunded_at: string | null
           selected_class_id: string | null
+          stripe_charge_id: string | null
+          stripe_checkout_session_id: string | null
+          stripe_invoice_id: string | null
+          stripe_payment_intent_id: string | null
           student_name: string
           tuition_item_id: string | null
           waiver_signature: string | null
@@ -280,6 +291,7 @@ export type Database = {
         }
         Insert: {
           age: number
+          amount_paid_cents?: number | null
           created_at?: string
           date_of_birth?: string | null
           desired_class: string
@@ -288,15 +300,25 @@ export type Database = {
           experience_level: string
           id?: string
           is_trial?: boolean
+          last_payment_error?: string | null
           media_release?: boolean
           medical_notes?: string | null
+          paid_at?: string | null
           parent_agreement?: boolean
           parent_name: string
           payment_choice?: string | null
+          payment_failure_count?: number
+          payment_failure_flagged?: boolean
           payment_status?: string
           phone: string
           program?: string | null
+          refunded_amount_cents?: number | null
+          refunded_at?: string | null
           selected_class_id?: string | null
+          stripe_charge_id?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
           student_name: string
           tuition_item_id?: string | null
           waiver_signature?: string | null
@@ -304,6 +326,7 @@ export type Database = {
         }
         Update: {
           age?: number
+          amount_paid_cents?: number | null
           created_at?: string
           date_of_birth?: string | null
           desired_class?: string
@@ -312,15 +335,25 @@ export type Database = {
           experience_level?: string
           id?: string
           is_trial?: boolean
+          last_payment_error?: string | null
           media_release?: boolean
           medical_notes?: string | null
+          paid_at?: string | null
           parent_agreement?: boolean
           parent_name?: string
           payment_choice?: string | null
+          payment_failure_count?: number
+          payment_failure_flagged?: boolean
           payment_status?: string
           phone?: string
           program?: string | null
+          refunded_amount_cents?: number | null
+          refunded_at?: string | null
           selected_class_id?: string | null
+          stripe_charge_id?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_invoice_id?: string | null
+          stripe_payment_intent_id?: string | null
           student_name?: string
           tuition_item_id?: string | null
           waiver_signature?: string | null
@@ -342,6 +375,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stripe_webhook_events: {
+        Row: {
+          environment: string
+          event_id: string
+          event_type: string
+          id: string
+          payload: Json | null
+          processed_at: string
+        }
+        Insert: {
+          environment: string
+          event_id: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string
+        }
+        Update: {
+          environment?: string
+          event_id?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          processed_at?: string
+        }
+        Relationships: []
       }
       subscriptions: {
         Row: {
