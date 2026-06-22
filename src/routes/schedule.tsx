@@ -34,6 +34,10 @@ function SchedulePage() {
         </p>
         {isLoading ? (
           <p className="mt-12 text-muted-foreground">Loading schedule…</p>
+        ) : dayOrder.filter((d) => byDay[d]).length === 0 ? (
+          <Card className="mt-12 p-8 text-center border-border">
+            <p className="text-muted-foreground">No classes scheduled yet. Please check back soon or contact us at (940) 249-5390.</p>
+          </Card>
         ) : (
           <div className="mt-12 space-y-4">
             {dayOrder.filter((d) => byDay[d]).map((day) => (
