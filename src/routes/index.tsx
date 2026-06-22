@@ -352,9 +352,9 @@ function Contact() {
           <Button asChild variant="outline" className="rounded-full"><Link to="/register">Schedule a Trial</Link></Button>
         </div>
         <div className="mt-8 flex gap-4">
-          <a href="#" aria-label="Instagram" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary"><Instagram className="h-4 w-4" /></a>
-          <a href="#" aria-label="Facebook" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary"><Facebook className="h-4 w-4" /></a>
-          <a href="#" aria-label="TikTok" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary"><Music2 className="h-4 w-4" /></a>
+          <a href="https://www.facebook.com/discoveryoutpostdance" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary"><Facebook className="h-4 w-4" /></a>
+          <a href="https://www.instagram.com/discoveryoutpostdance" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary"><Instagram className="h-4 w-4" /></a>
+          <a href="https://www.tiktok.com/@discoveryoutpostdance" target="_blank" rel="noopener noreferrer" aria-label="TikTok" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary"><Music2 className="h-4 w-4" /></a>
         </div>
       </div>
       <div className="rounded-2xl overflow-hidden border border-border min-h-[360px]">
