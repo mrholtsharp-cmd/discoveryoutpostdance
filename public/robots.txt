@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://discoverydance.lovable.app/sitemap.xml
+Sitemap: https://discoveryoutpost.dance/sitemap.xml
