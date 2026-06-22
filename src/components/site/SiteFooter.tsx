@@ -23,13 +23,13 @@ export function SiteFooter() {
             for all ages and skill levels.
           </p>
           <div className="mt-6 flex gap-4">
-            <a href="#" aria-label="Instagram" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary transition">
-              <Instagram className="h-4 w-4" />
-            </a>
-            <a href="#" aria-label="Facebook" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary transition">
+            <a href="https://www.facebook.com/discoveryoutpostdance" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary transition">
               <Facebook className="h-4 w-4" />
             </a>
-            <a href="#" aria-label="TikTok" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary transition">
+            <a href="https://www.instagram.com/discoveryoutpostdance" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary transition">
+              <Instagram className="h-4 w-4" />
+            </a>
+            <a href="https://www.tiktok.com/@discoveryoutpostdance" target="_blank" rel="noopener noreferrer" aria-label="TikTok" className="p-2 rounded-full border border-border hover:border-primary hover:text-primary transition">
               <Music2 className="h-4 w-4" />
             </a>
           </div>
