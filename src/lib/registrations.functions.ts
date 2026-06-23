@@ -6,9 +6,12 @@ import { createHash, randomInt } from "crypto";
 
 const registrationSchema = z.object({
   student_name: z.string().trim().min(1).max(100),
+  student_first_name: z.string().trim().min(1).max(60).optional().nullable(),
+  student_last_name: z.string().trim().min(1).max(60).optional().nullable(),
   parent_name: z.string().trim().min(1).max(100),
   email: z.string().trim().email().max(255),
   phone: z.string().trim().min(7).max(30),
+  parent_address: z.string().trim().max(300).optional().nullable(),
   age: z.number().int().min(2).max(99),
   desired_class: z.enum(["Tap", "Jazz", "Ballet", "Musical Theater"]),
   experience_level: z.enum(["Beginner", "Intermediate", "Advanced"]),
