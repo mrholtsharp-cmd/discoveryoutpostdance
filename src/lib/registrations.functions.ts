@@ -160,11 +160,32 @@ export const submitRegistration = createServerFn({ method: "POST" })
     }
 
     // Insert registration
+    // Duplicate prevention: same student (first + last + DOB) in same class.
+    if (data.student_first_name && data.student_last_name && data.date_of_birth) {
+      const { data: existing } = await supabaseAdmin
+        .from("registrations")
+        .select("id")
+        .ilike("student_first_name", data.student_first_name)
+        .ilike("student_last_name", data.student_last_name)
+        .eq("date_of_birth", data.date_of_birth)
+        .eq("desired_class", data.desired_class)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        await logAudit({ event_type: "submit_failed", email, error_message: "duplicate_registration" });
+        throw new Error(
+          `This student is already registered for ${data.desired_class}. Please contact us if you need to make changes.`,
+        );
+      }
+    }
+
     const { data: inserted, error } = await supabaseAdmin.from("registrations").insert({
       student_name: data.student_name,
+      student_first_name: data.student_first_name ?? null,
+      student_last_name: data.student_last_name ?? null,
       parent_name: data.parent_name,
       email,
       phone: data.phone,
+      parent_address: data.parent_address ?? null,
       age: data.age,
       desired_class: data.desired_class,
       experience_level: data.experience_level,
