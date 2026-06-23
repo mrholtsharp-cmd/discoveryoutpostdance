@@ -105,11 +105,13 @@ function RegisterPage() {
   const [scheduleId, setScheduleId] = useState<string>("");
   const [waiver, setWaiver] = useState({ liability: false, media: false, parent: false, signature: "" });
   const [form, setForm] = useState({
-    student_name: "",
+    student_first_name: "",
+    student_last_name: "",
     date_of_birth: "",
     parent_name: "",
     email: "",
     phone: "",
+    parent_address: "",
     age: "",
     experience_level: "Beginner" as "Beginner" | "Intermediate" | "Advanced",
     emergency_contact: "",
@@ -153,8 +155,10 @@ function RegisterPage() {
     if (step === 1) return !!program;
     if (step === 2) return !!choice && !!selectedItem;
     if (step === 3)
-      return !!form.student_name && !!form.parent_name && !!form.email
-        && !!form.phone && !!form.age && !!form.emergency_contact;
+      return !!form.student_first_name && !!form.student_last_name
+        && !!form.date_of_birth && !!form.parent_name && !!form.email
+        && !!form.phone && !!form.parent_address && !!form.age
+        && !!form.emergency_contact;
     if (step === 4)
       return waiver.liability && waiver.media && waiver.parent && waiver.signature.trim().length >= 2;
     return true;
@@ -166,10 +170,13 @@ function RegisterPage() {
     try {
       const result = await submit({
         data: {
-          student_name: form.student_name,
+          student_name: `${form.student_first_name} ${form.student_last_name}`.trim(),
+          student_first_name: form.student_first_name,
+          student_last_name: form.student_last_name,
           parent_name: form.parent_name,
           email: form.email,
           phone: form.phone,
+          parent_address: form.parent_address,
           age: Number(form.age),
           desired_class: (program === "Musical Theater" ? "Musical Theater" : "Ballet") as
             "Ballet" | "Musical Theater",
@@ -345,8 +352,11 @@ function RegisterPage() {
           {step === 3 && (
             <StepBlock title="Student information" subtitle="Who's enrolling, and how do we reach you?">
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Student name">
-                  <Input value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
+                <Field label="Student first name">
+                  <Input value={form.student_first_name} onChange={(e) => setForm({ ...form, student_first_name: e.target.value })} />
+                </Field>
+                <Field label="Student last name">
+                  <Input value={form.student_last_name} onChange={(e) => setForm({ ...form, student_last_name: e.target.value })} />
                 </Field>
                 <Field label="Date of birth">
                   <Input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
@@ -374,6 +384,13 @@ function RegisterPage() {
                   <Input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </Field>
               </div>
+              <Field label="Home address">
+                <Input
+                  placeholder="Street, City, State ZIP"
+                  value={form.parent_address}
+                  onChange={(e) => setForm({ ...form, parent_address: e.target.value })}
+                />
+              </Field>
               <Field label="Medical notes / allergies (optional)">
                 <Textarea rows={3} value={form.medical_notes} onChange={(e) => setForm({ ...form, medical_notes: e.target.value })} />
               </Field>

@@ -269,6 +269,7 @@ export type Database = {
           media_release: boolean
           medical_notes: string | null
           paid_at: string | null
+          parent_address: string | null
           parent_agreement: boolean
           parent_name: string
           payment_choice: string | null
@@ -284,6 +285,8 @@ export type Database = {
           stripe_checkout_session_id: string | null
           stripe_invoice_id: string | null
           stripe_payment_intent_id: string | null
+          student_first_name: string | null
+          student_last_name: string | null
           student_name: string
           tuition_item_id: string | null
           waiver_signature: string | null
@@ -304,6 +307,7 @@ export type Database = {
           media_release?: boolean
           medical_notes?: string | null
           paid_at?: string | null
+          parent_address?: string | null
           parent_agreement?: boolean
           parent_name: string
           payment_choice?: string | null
@@ -319,6 +323,8 @@ export type Database = {
           stripe_checkout_session_id?: string | null
           stripe_invoice_id?: string | null
           stripe_payment_intent_id?: string | null
+          student_first_name?: string | null
+          student_last_name?: string | null
           student_name: string
           tuition_item_id?: string | null
           waiver_signature?: string | null
@@ -339,6 +345,7 @@ export type Database = {
           media_release?: boolean
           medical_notes?: string | null
           paid_at?: string | null
+          parent_address?: string | null
           parent_agreement?: boolean
           parent_name?: string
           payment_choice?: string | null
@@ -354,6 +361,8 @@ export type Database = {
           stripe_checkout_session_id?: string | null
           stripe_invoice_id?: string | null
           stripe_payment_intent_id?: string | null
+          student_first_name?: string | null
+          student_last_name?: string | null
           student_name?: string
           tuition_item_id?: string | null
           waiver_signature?: string | null
