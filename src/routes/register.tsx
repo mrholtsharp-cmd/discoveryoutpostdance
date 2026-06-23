@@ -105,11 +105,13 @@ function RegisterPage() {
   const [scheduleId, setScheduleId] = useState<string>("");
   const [waiver, setWaiver] = useState({ liability: false, media: false, parent: false, signature: "" });
   const [form, setForm] = useState({
-    student_name: "",
+    student_first_name: "",
+    student_last_name: "",
     date_of_birth: "",
     parent_name: "",
     email: "",
     phone: "",
+    parent_address: "",
     age: "",
     experience_level: "Beginner" as "Beginner" | "Intermediate" | "Advanced",
     emergency_contact: "",
@@ -153,8 +155,10 @@ function RegisterPage() {
     if (step === 1) return !!program;
     if (step === 2) return !!choice && !!selectedItem;
     if (step === 3)
-      return !!form.student_name && !!form.parent_name && !!form.email
-        && !!form.phone && !!form.age && !!form.emergency_contact;
+      return !!form.student_first_name && !!form.student_last_name
+        && !!form.date_of_birth && !!form.parent_name && !!form.email
+        && !!form.phone && !!form.parent_address && !!form.age
+        && !!form.emergency_contact;
     if (step === 4)
       return waiver.liability && waiver.media && waiver.parent && waiver.signature.trim().length >= 2;
     return true;
