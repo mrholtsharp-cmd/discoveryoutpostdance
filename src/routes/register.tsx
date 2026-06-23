@@ -352,8 +352,11 @@ function RegisterPage() {
           {step === 3 && (
             <StepBlock title="Student information" subtitle="Who's enrolling, and how do we reach you?">
               <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Student name">
-                  <Input value={form.student_name} onChange={(e) => setForm({ ...form, student_name: e.target.value })} />
+                <Field label="Student first name">
+                  <Input value={form.student_first_name} onChange={(e) => setForm({ ...form, student_first_name: e.target.value })} />
+                </Field>
+                <Field label="Student last name">
+                  <Input value={form.student_last_name} onChange={(e) => setForm({ ...form, student_last_name: e.target.value })} />
                 </Field>
                 <Field label="Date of birth">
                   <Input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
@@ -381,6 +384,13 @@ function RegisterPage() {
                   <Input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </Field>
               </div>
+              <Field label="Home address">
+                <Input
+                  placeholder="Street, City, State ZIP"
+                  value={form.parent_address}
+                  onChange={(e) => setForm({ ...form, parent_address: e.target.value })}
+                />
+              </Field>
               <Field label="Medical notes / allergies (optional)">
                 <Textarea rows={3} value={form.medical_notes} onChange={(e) => setForm({ ...form, medical_notes: e.target.value })} />
               </Field>
