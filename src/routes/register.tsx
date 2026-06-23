@@ -170,10 +170,13 @@ function RegisterPage() {
     try {
       const result = await submit({
         data: {
-          student_name: form.student_name,
+          student_name: `${form.student_first_name} ${form.student_last_name}`.trim(),
+          student_first_name: form.student_first_name,
+          student_last_name: form.student_last_name,
           parent_name: form.parent_name,
           email: form.email,
           phone: form.phone,
+          parent_address: form.parent_address,
           age: Number(form.age),
           desired_class: (program === "Musical Theater" ? "Musical Theater" : "Ballet") as
             "Ballet" | "Musical Theater",
