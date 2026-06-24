@@ -265,6 +265,7 @@ const searchRegistrationsSchema = z.object({
   desired_class: z.string().trim().max(100).optional().default(""),
   experience_level: z.string().trim().max(50).optional().default(""),
   is_trial: z.enum(["all", "yes", "no"]).optional().default("all"),
+  approval_status: z.enum(["all", "pending", "approved", "waitlisted", "declined"]).optional().default("all"),
   date_from: z.string().trim().max(40).optional().default(""),
   date_to: z.string().trim().max(40).optional().default(""),
   sort: z.enum(["newest", "oldest"]).optional().default("newest"),
@@ -300,6 +301,7 @@ export const searchRegistrations = createServerFn({ method: "POST" })
     if (data.experience_level) q = q.eq("experience_level", data.experience_level);
     if (data.is_trial === "yes") q = q.eq("is_trial", true);
     if (data.is_trial === "no") q = q.eq("is_trial", false);
+    if (data.approval_status && data.approval_status !== "all") q = q.eq("approval_status", data.approval_status);
     if (data.date_from) q = q.gte("created_at", new Date(data.date_from).toISOString());
     if (data.date_to) {
       const end = new Date(data.date_to);
@@ -362,6 +364,7 @@ export const exportRegistrations = createServerFn({ method: "POST" })
     if (data.experience_level) q = q.eq("experience_level", data.experience_level);
     if (data.is_trial === "yes") q = q.eq("is_trial", true);
     if (data.is_trial === "no") q = q.eq("is_trial", false);
+    if (data.approval_status && data.approval_status !== "all") q = q.eq("approval_status", data.approval_status);
     if (data.date_from) q = q.gte("created_at", new Date(data.date_from).toISOString());
     if (data.date_to) {
       const end = new Date(data.date_to);

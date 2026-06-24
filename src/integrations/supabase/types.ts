@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       class_schedule: {
         Row: {
+          capacity: number | null
           class_name: string
           created_at: string
           day: string
@@ -24,6 +25,7 @@ export type Database = {
           time: string
         }
         Insert: {
+          capacity?: number | null
           class_name: string
           created_at?: string
           day: string
@@ -32,6 +34,7 @@ export type Database = {
           time: string
         }
         Update: {
+          capacity?: number | null
           class_name?: string
           created_at?: string
           day?: string
@@ -255,8 +258,12 @@ export type Database = {
       }
       registrations: {
         Row: {
+          admin_notes: string | null
           age: number
           amount_paid_cents: number | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           date_of_birth: string | null
           desired_class: string
@@ -293,8 +300,12 @@ export type Database = {
           waivers_signed_at: string | null
         }
         Insert: {
+          admin_notes?: string | null
           age: number
           amount_paid_cents?: number | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           date_of_birth?: string | null
           desired_class: string
@@ -331,8 +342,12 @@ export type Database = {
           waivers_signed_at?: string | null
         }
         Update: {
+          admin_notes?: string | null
           age?: number
           amount_paid_cents?: number | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           date_of_birth?: string | null
           desired_class?: string
