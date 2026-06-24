@@ -139,9 +139,34 @@ function RegistrationsAdminPage() {
   const fn = useServerFn(searchRegistrations);
   const exportFn = useServerFn(exportRegistrations);
   const refundFn = useServerFn(adminRefundRegistration);
+  const approveFn = useServerFn(updateRegistrationApproval);
+  const updateFn = useServerFn(updateRegistration);
   const qc = useQueryClient();
   const [refundingId, setRefundingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [editing, setEditing] = useState<any | null>(null);
+
+  const approveM = useMutation({
+    mutationFn: (vars: { id: string; status: "pending" | "approved" | "waitlisted" | "declined" }) =>
+      approveFn({ data: vars }),
+    onSuccess: (_d, v) => {
+      toast.success(`Marked as ${v.status}`);
+      qc.invalidateQueries({ queryKey: ["registrations"] });
+      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const editM = useMutation({
+    mutationFn: (payload: any) => updateFn({ data: payload }),
+    onSuccess: () => {
+      toast.success("Saved");
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ["registrations"] });
+      qc.invalidateQueries({ queryKey: ["admin-dashboard"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
   const deps = depsFrom(search);
 
   const opts = queryOptions({
