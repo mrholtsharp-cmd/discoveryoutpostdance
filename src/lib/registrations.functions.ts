@@ -265,6 +265,7 @@ const searchRegistrationsSchema = z.object({
   desired_class: z.string().trim().max(100).optional().default(""),
   experience_level: z.string().trim().max(50).optional().default(""),
   is_trial: z.enum(["all", "yes", "no"]).optional().default("all"),
+  approval_status: z.enum(["all", "pending", "approved", "waitlisted", "declined"]).optional().default("all"),
   date_from: z.string().trim().max(40).optional().default(""),
   date_to: z.string().trim().max(40).optional().default(""),
   sort: z.enum(["newest", "oldest"]).optional().default("newest"),
