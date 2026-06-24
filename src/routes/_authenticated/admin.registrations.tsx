@@ -360,6 +360,7 @@ function RegistrationsAdminPage() {
                   <th className="py-2 pr-4">Level</th>
                   <th className="py-2 pr-4">Age</th>
                   <th className="py-2 pr-4">Trial</th>
+                  <th className="py-2 pr-4">Status</th>
                   <th className="py-2 pr-4">Payment</th>
                 </tr>
               </thead>
@@ -391,6 +392,16 @@ function RegistrationsAdminPage() {
                         <td className="py-2 pr-4">{r.is_trial ? "Yes" : ""}</td>
                         <td className="py-2 pr-4">
                           {(() => {
+                            const b = approvalBadge((r as any).approval_status);
+                            return (
+                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${b.className}`}>
+                                {b.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {(() => {
                             const b = paymentBadge(r as any);
                             return (
                               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${b.className}`}>
@@ -403,7 +414,7 @@ function RegistrationsAdminPage() {
                       {isOpen && (
                         <tr className="bg-muted/30">
                           <td></td>
-                          <td colSpan={9} className="py-3 pr-4">
+                          <td colSpan={10} className="py-3 pr-4">
                             <div className="grid sm:grid-cols-2 gap-4 text-sm">
                               <div>
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Emergency contact</div>
@@ -413,6 +424,12 @@ function RegistrationsAdminPage() {
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Medical notes</div>
                                 <div className="whitespace-pre-wrap">{r.medical_notes || "—"}</div>
                               </div>
+                              {(r as any).admin_notes && (
+                                <div className="sm:col-span-2">
+                                  <div className="text-xs uppercase tracking-wide text-muted-foreground">Admin notes</div>
+                                  <div className="whitespace-pre-wrap">{(r as any).admin_notes}</div>
+                                </div>
+                              )}
                               <div>
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Amount paid</div>
                                 <div>
@@ -428,6 +445,21 @@ function RegistrationsAdminPage() {
                               </div>
                               <div>
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Actions</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <Button size="sm" variant="outline"
+                                    disabled={approveM.isPending || (r as any).approval_status === "approved"}
+                                    onClick={() => approveM.mutate({ id: r.id, status: "approved" })}
+                                  >Approve</Button>
+                                  <Button size="sm" variant="outline"
+                                    disabled={approveM.isPending || (r as any).approval_status === "waitlisted"}
+                                    onClick={() => approveM.mutate({ id: r.id, status: "waitlisted" })}
+                                  >Waitlist</Button>
+                                  <Button size="sm" variant="outline"
+                                    disabled={approveM.isPending || (r as any).approval_status === "declined"}
+                                    onClick={() => approveM.mutate({ id: r.id, status: "declined" })}
+                                  >Decline</Button>
+                                  <Button size="sm" variant="outline" onClick={() => setEditing(r)}>Edit student</Button>
+                                </div>
                                 {((r as any).stripe_charge_id || (r as any).stripe_payment_intent_id) ? (
                                   <Button
                                     variant="outline"
