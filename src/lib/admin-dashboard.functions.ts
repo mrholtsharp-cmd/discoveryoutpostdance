@@ -118,7 +118,7 @@ export const updateRegistrationApproval = createServerFn({ method: "POST" })
       approved_by: data.status === "approved" ? context.userId : null,
     };
     if (data.admin_notes !== undefined) patch.admin_notes = data.admin_notes;
-    const { error } = await supabaseAdmin.from("registrations").update(patch).eq("id", data.id);
+    const { error } = await supabaseAdmin.from("registrations").update(patch as never).eq("id", data.id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
