@@ -148,7 +148,7 @@ export const updateRegistration = createServerFn({ method: "POST" })
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { id, ...patch } = data;
-    const { error } = await supabaseAdmin.from("registrations").update(patch).eq("id", id);
+    const { error } = await supabaseAdmin.from("registrations").update(patch as never).eq("id", id);
     if (error) throw new Error(error.message);
     return { ok: true };
   });
