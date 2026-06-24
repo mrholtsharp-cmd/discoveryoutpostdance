@@ -278,6 +278,21 @@ function RegistrationsAdminPage() {
               </SelectContent>
             </Select>
             <Select
+              value={search.status}
+              onValueChange={(v: SearchParams["status"]) =>
+                navigate({ search: (p: SearchParams) => ({ ...p, status: v, page: 1 }) })
+              }
+            >
+              <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="waitlisted">Waitlisted</SelectItem>
+                <SelectItem value="declined">Declined</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select
               value={search.sort}
               onValueChange={(v: "newest" | "oldest") =>
                 navigate({ search: (p: SearchParams) => ({ ...p, sort: v, page: 1 }) })
