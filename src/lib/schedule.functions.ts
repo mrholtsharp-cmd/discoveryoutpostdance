@@ -19,6 +19,7 @@ const entrySchema = z.object({
   class_name: z.string().min(1).max(80),
   time: z.string().min(1).max(40),
   sort_order: z.number().int().min(0).max(100),
+  capacity: z.number().int().min(0).max(1000).nullable().optional(),
 });
 
 async function ensureAdmin(context: { supabase: any; userId: string }) {
