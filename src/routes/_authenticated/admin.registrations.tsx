@@ -573,6 +573,87 @@ function RegistrationsAdminPage() {
           </div>
         </Card>
       </section>
+      <EditRegistrationDialog
+        open={!!editing}
+        row={editing}
+        onClose={() => setEditing(null)}
+        onSave={(patch) => editM.mutate(patch)}
+        saving={editM.isPending}
+      />
     </Layout>
+  );
+}
+
+function EditRegistrationDialog({
+  open, row, onClose, onSave, saving,
+}: {
+  open: boolean;
+  row: any | null;
+  onClose: () => void;
+  onSave: (patch: Record<string, unknown>) => void;
+  saving: boolean;
+}) {
+  const [draft, setDraft] = useState<any>({});
+  useEffect(() => {
+    if (row) {
+      setDraft({
+        student_name: row.student_name ?? "",
+        student_first_name: row.student_first_name ?? "",
+        student_last_name: row.student_last_name ?? "",
+        parent_name: row.parent_name ?? "",
+        email: row.email ?? "",
+        phone: row.phone ?? "",
+        parent_address: row.parent_address ?? "",
+        age: row.age ?? 0,
+        desired_class: row.desired_class ?? "",
+        experience_level: row.experience_level ?? "",
+        emergency_contact: row.emergency_contact ?? "",
+        medical_notes: row.medical_notes ?? "",
+        admin_notes: row.admin_notes ?? "",
+      });
+    }
+  }, [row]);
+
+  if (!row) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit registration</DialogTitle>
+        </DialogHeader>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div><Label>First name</Label><Input value={draft.student_first_name} onChange={(e) => setDraft({ ...draft, student_first_name: e.target.value })} /></div>
+          <div><Label>Last name</Label><Input value={draft.student_last_name} onChange={(e) => setDraft({ ...draft, student_last_name: e.target.value })} /></div>
+          <div className="sm:col-span-2"><Label>Display name</Label><Input value={draft.student_name} onChange={(e) => setDraft({ ...draft, student_name: e.target.value })} /></div>
+          <div><Label>Age</Label><Input type="number" value={draft.age} onChange={(e) => setDraft({ ...draft, age: Number(e.target.value) || 0 })} /></div>
+          <div><Label>Class</Label>
+            <Select value={draft.desired_class} onValueChange={(v) => setDraft({ ...draft, desired_class: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{CLASSES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="sm:col-span-2"><Label>Level</Label>
+            <Select value={draft.experience_level} onValueChange={(v) => setDraft({ ...draft, experience_level: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{LEVELS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div><Label>Parent name</Label><Input value={draft.parent_name} onChange={(e) => setDraft({ ...draft, parent_name: e.target.value })} /></div>
+          <div><Label>Email</Label><Input value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></div>
+          <div><Label>Phone</Label><Input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
+          <div><Label>Address</Label><Input value={draft.parent_address} onChange={(e) => setDraft({ ...draft, parent_address: e.target.value })} /></div>
+          <div className="sm:col-span-2"><Label>Emergency contact</Label><Input value={draft.emergency_contact} onChange={(e) => setDraft({ ...draft, emergency_contact: e.target.value })} /></div>
+          <div className="sm:col-span-2"><Label>Medical notes</Label><Textarea value={draft.medical_notes} onChange={(e) => setDraft({ ...draft, medical_notes: e.target.value })} /></div>
+          <div className="sm:col-span-2"><Label>Admin notes (internal)</Label><Textarea value={draft.admin_notes} onChange={(e) => setDraft({ ...draft, admin_notes: e.target.value })} /></div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button disabled={saving} onClick={() => onSave({ id: row.id, ...draft })}>
+            {saving ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
