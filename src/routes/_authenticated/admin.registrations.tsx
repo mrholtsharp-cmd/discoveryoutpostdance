@@ -16,11 +16,18 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { searchRegistrations, exportRegistrations } from "@/lib/registrations.functions";
+import { updateRegistrationApproval, updateRegistration } from "@/lib/admin-dashboard.functions";
 import { adminRefundRegistration } from "@/utils/payments.functions";
 import { getStripeEnvironment } from "@/lib/stripe";
 import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp, Download, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 function paymentBadge(r: { payment_status?: string | null; payment_failure_flagged?: boolean | null }) {
   const s = r.payment_status ?? "pending";
@@ -36,11 +43,23 @@ function paymentBadge(r: { payment_status?: string | null; payment_failure_flagg
   return map[s] ?? { label: s, className: "bg-zinc-100 text-zinc-700 border-zinc-200" };
 }
 
+function approvalBadge(s: string | null | undefined) {
+  const v = s ?? "pending";
+  const map: Record<string, { label: string; className: string }> = {
+    pending: { label: "Pending", className: "bg-amber-100 text-amber-900 border-amber-200" },
+    approved: { label: "Approved", className: "bg-green-100 text-green-800 border-green-200" },
+    waitlisted: { label: "Waitlisted", className: "bg-blue-100 text-blue-800 border-blue-200" },
+    declined: { label: "Declined", className: "bg-zinc-200 text-zinc-700 border-zinc-300" },
+  };
+  return map[v] ?? map.pending;
+}
+
 const searchSchema = z.object({
   q: fallback(z.string(), "").default(""),
   cls: fallback(z.string(), "").default(""),
   lvl: fallback(z.string(), "").default(""),
   trial: fallback(z.enum(["all", "yes", "no"]), "all").default("all"),
+  status: fallback(z.enum(["all", "pending", "approved", "waitlisted", "declined"]), "all").default("all"),
   from: fallback(z.string(), "").default(""),
   to: fallback(z.string(), "").default(""),
   sort: fallback(z.enum(["newest", "oldest"]), "newest").default("newest"),
@@ -56,6 +75,7 @@ function depsFrom(s: SearchParams) {
     desired_class: s.cls,
     experience_level: s.lvl,
     is_trial: s.trial,
+    approval_status: s.status,
     date_from: s.from,
     date_to: s.to,
     sort: s.sort,
