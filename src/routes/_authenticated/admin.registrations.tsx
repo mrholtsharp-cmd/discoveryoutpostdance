@@ -196,7 +196,7 @@ function RegistrationsAdminPage() {
 
   const hasFilters =
     search.q || search.cls || search.lvl || search.trial !== "all" ||
-    search.from || search.to || search.sort !== "newest";
+    search.status !== "all" || search.from || search.to || search.sort !== "newest";
 
   return (
     <Layout>
@@ -334,7 +334,7 @@ function RegistrationsAdminPage() {
                   onClick={() =>
                     navigate({
                       search: () => ({
-                        q: "", cls: "", lvl: "", trial: "all" as const,
+                      q: "", cls: "", lvl: "", trial: "all" as const, status: "all" as const,
                         from: "", to: "", sort: "newest" as const,
                         page: 1, size: search.size,
                       }),
