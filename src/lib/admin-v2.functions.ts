@@ -39,7 +39,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     ] = await Promise.all([
       supabaseAdmin.from("students").select("id, parent_id, created_at"),
       supabaseAdmin.from("parents").select("id, created_at"),
-      supabaseAdmin.from("enrollments").select("id, class_id, status, enrolled_at"),
+      supabaseAdmin.from("enrollments").select("id, class_id, status, enrolled_at, student_id"),
       supabaseAdmin.from("waitlist_entries").select("id, class_id"),
       supabaseAdmin.from("class_schedule").select("id, day, class_name, time, capacity, instructor"),
       supabaseAdmin.from("registrations").select(
