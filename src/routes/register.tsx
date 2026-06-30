@@ -12,8 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
+import { createCartCheckoutSession, createInvoiceRequest } from "@/utils/payments.functions";
+import { getStripeEnvironment } from "@/lib/stripe";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, CreditCard, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -27,8 +30,11 @@ export const Route = createFileRoute("/register")({
   component: RegisterWizard,
 });
 
-const REGISTRATION_FEE_CENTS = 4500;
+const REGISTRATION_FEE_CENTS = 1000;
+const REGISTRATION_FEE_LOOKUP_KEY = "do_registration_fee";
 const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
+
+type PaymentPlan = "auto_pay" | "invoice";
 
 type StudentDraft = {
   first_name: string;
@@ -54,6 +60,7 @@ type WizardState = {
     emergency_contact_phone: string;
   };
   students: StudentDraft[];
+  payment_plan: PaymentPlan;
 };
 
 const emptyStudent = (): StudentDraft => ({
@@ -68,6 +75,7 @@ const initialState: WizardState = {
     address: "", emergency_contact_name: "", emergency_contact_phone: "",
   },
   students: [emptyStudent()],
+  payment_plan: "auto_pay",
 };
 
 function calcAge(dob: string): number | null {
