@@ -221,7 +221,74 @@ function RegisterWizard() {
       const enrolled = result.placements.filter((p) => p.placement === "enrolled").length;
       toast.success(`Registered! ${enrolled} enrolled, ${waitlisted} waitlisted.`);
       sessionStorage.removeItem(WIZARD_STORAGE_KEY);
-      navigate({ to: "/account" });
+
+      // Build payment cart from the enrolled (non-waitlist) classes only.
+      const classesData = classesQuery.data ?? [];
+      const classMap = new Map(classesData.map((c) => [c.id, c]));
+      const enrolledClassIds = result.placements
+        .filter((p) => p.placement === "enrolled")
+        .map((p) => p.class_id);
+
+      // Find student name for each enrollment (used by invoice request labels).
+      const studentNameByClassId = new Map<string, string>();
+      for (const s of state.students) {
+        for (const cid of s.class_ids) {
+          studentNameByClassId.set(cid, `${s.first_name} ${s.last_name}`.trim());
+        }
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (state.payment_plan === "invoice") {
+        // No card charge today — registration fee + monthly tuition invoiced.
+        const items: { classLabel: string; monthlyAmountCents: number; studentName?: string }[] = [];
+        items.push({ classLabel: "Season Registration Fee", monthlyAmountCents: REGISTRATION_FEE_CENTS });
+        for (const cid of enrolledClassIds) {
+          const c = classMap.get(cid);
+          if (!c || !c.monthly_tuition_cents) continue;
+          items.push({
+            classLabel: c.class_name,
+            monthlyAmountCents: c.monthly_tuition_cents,
+            studentName: studentNameByClassId.get(cid),
+          });
+        }
+        if (items.length > 1) {
+          const inv = await createInvoiceRequest({ data: { items } });
+          if ("error" in inv) throw new Error(inv.error);
+        }
+        toast.success("Invoice request received — the studio will email your invoice.");
+        navigate({ to: "/account" });
+        return;
+      }
+
+      // Auto-pay: bundle registration fee + a monthly subscription per enrolled class.
+      const cartItems: { priceId: string; quantity: number }[] = [
+        { priceId: REGISTRATION_FEE_LOOKUP_KEY, quantity: 1 },
+      ];
+      // Aggregate identical classes (multiple students in same class) by quantity.
+      const monthlyCounts = new Map<string, number>();
+      for (const cid of enrolledClassIds) {
+        const c = classMap.get(cid);
+        const lk = c?.stripe_monthly_lookup_key;
+        if (!lk) continue;
+        monthlyCounts.set(lk, (monthlyCounts.get(lk) ?? 0) + 1);
+      }
+      for (const [lk, qty] of monthlyCounts) {
+        cartItems.push({ priceId: lk, quantity: qty });
+      }
+
+      // If no enrolled classes (everything waitlisted), still charge registration.
+      const checkout = await createCartCheckoutSession({
+        data: {
+          items: cartItems,
+          returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
+          environment: getStripeEnvironment(),
+          paymentPlan: monthlyCounts.size > 0 ? "auto_pay" : "semester",
+          ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
+        },
+      });
+      if ("error" in checkout) throw new Error(checkout.error);
+      window.location.href = checkout.url;
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
