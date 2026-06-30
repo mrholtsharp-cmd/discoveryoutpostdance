@@ -298,6 +298,7 @@ function RegisterWizard() {
 
   return (
     <Layout>
+      <PaymentTestModeBanner />
       <section className="mx-auto max-w-3xl px-4 py-8 pb-32 sm:py-12">
         <h1 className="font-display text-3xl sm:text-4xl">Register</h1>
         <p className="mt-2 text-sm text-muted-foreground">Create your account and enroll your students in just a few steps.</p>
@@ -322,6 +323,7 @@ function RegisterWizard() {
               state={state}
               classes={classesQuery.data ?? []}
               totalMonthly={totalMonthly}
+              setPaymentPlan={(p) => setState((s) => ({ ...s, payment_plan: p }))}
             />
           )}
         </Card>
@@ -350,7 +352,11 @@ function RegisterWizard() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmitAll} disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit Registration"}
+                {submitting
+                  ? "Submitting…"
+                  : state.payment_plan === "invoice"
+                    ? "Submit & Request Invoice"
+                    : "Submit & Pay"}
               </Button>
             )}
           </div>
