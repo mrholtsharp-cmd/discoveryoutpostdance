@@ -1,78 +1,78 @@
-## Goal
 
-Rebuild checkout into a real dance-studio billing engine: multi-student cart, $10 per-student-per-season registration fee, three payment options (auto-pay / monthly invoice / semester upfront), seasonal Aug–Nov-only charging, automatic proration when enrollment starts mid-season, and a parent dashboard to see/manage it all.
+# Registration system rebuild
 
-## Scope of THIS turn
+Scope: registration, database, auth, enrollment. Payments code path is left alone — the new wizard ends at a Review step with a placeholder total (no Stripe call). Old `registrations` table is kept read-only for the admin dashboard / parent portal / payments that already depend on it; new flows write to the new tables.
 
-A focused, working slice of items 1–5 from the sequencing list:
-
-1. Data model for students + enrollments + season config
-2. Cart UI that supports multiple students and the three payment options
-3. $10 registration fee logic (charged once per student per season)
-4. Seasonal billing engine (only Aug–Nov; proration math)
-5. A first-pass parent dashboard ("My Account" page) showing enrolled students, classes, next charge date, payment method
-6. Schedule swap to your new Tue/Wed/Thu list
-7. Cash-only on /register, card-only on /tuition (re-confirmed)
-
-Deferred to next turn (explicitly out of scope here so we don't ship half-broken):
-- Admin pricing editor UI
-- Google Sheets sync
-- Invoice email automation + reminder emails
-- Apple Pay / Google Pay wallet polish
-- Go-live publish (we publish after you verify the flow)
-
-## What I'll build
-
-### 1. Database
-
-New tables (with RLS):
-
-- `students` — parent_id (auth.users), full_name, date_of_birth
-- `enrollments` — student_id, class_id (from class_schedule), season_year, payment_plan ('auto_pay' | 'invoice' | 'semester'), status, stripe_subscription_id, created_at
-- `registration_fees` — student_id, season_year, paid_at, stripe_charge_id (uniqueness: one per student+season)
-- `season_config` — singleton-ish row: season_year, start_month=8, end_month=11, registration_fee_cents=1000
-
-Extend `tuition_items` with `kind` ('class_monthly' | 'class_semester' | 'registration_fee') if not already there.
-
-### 2. Server functions (`src/utils/payments.functions.ts`)
-
-- `createEnrollmentCheckout({ items: [{studentId, classId, plan}], environment })` — single Stripe Checkout that:
-  - Adds $10 fee per student that doesn't already have one for this season
-  - For `auto_pay`: subscription mode; `cancel_at` = end of November of current season
-  - For `semester`: one-time payment, amount = semester price × (remaining months / 4)
-  - For `invoice`: creates DB rows + sends invoice email (no Stripe charge today)
-  - Today's-total vs future-schedule returned to client for the cart summary
-- `getMyEnrollments()` — list students + classes + next charge date (auth-protected)
-
-### 3. Frontend
-
-- `/tuition` — keep class list, but "Add to cart" now asks: which student? which payment plan?
-- New cart drawer shows: per-student line items, $10 fee row (only if owed), discount text, today's total, future schedule
-- `/register` — student creation form (cash flow only; says "to pay by card, go to /tuition")
-- `/account` — list students, their classes, payment plan, next charge date, "manage payment method" button → Stripe billing portal
-- Schedule component updated to Tue/Wed/Thu list
-
-### 4. Proration math
+## Database (new tables, all in `public`)
 
 ```text
-remaining_months = max(0, 12 - max(current_month, 8) + 1) clamped to [0,4]
-semester_price_today = semester_full_price * (remaining_months / 4)
+parents              1 — n  students
+parents              1 — n  emergency_contacts
+classes              1 — n  enrollments     n — 1  students
+classes              1 — n  waitlist_entries n — 1  students
 ```
 
-Examples surface in the cart: "Original $400 → Prorated $300 (start in Sept, 3 months left)".
+- `parents` — `auth_user_id` (FK auth.users, unique), first_name, last_name, email (unique), phone, address.
+- `emergency_contacts` — parent_id, name, phone, is_primary. Step 1 primary contact stored here.
+- `students` — parent_id, first_name, last_name, date_of_birth, grade, allergies, medical_notes, shirt_size. Age is derived in the UI from DOB (not stored).
+- `classes` — view/wrapper over `class_schedule` extended with `description`, `age_group`, `instructor`, `monthly_tuition_cents`. Missing columns added to `class_schedule` rather than duplicating data, so admin schedule editor keeps working.
+- `enrollments` — student_id, class_id, status (`active`/`cancelled`), enrolled_at. Unique (student_id, class_id).
+- `waitlist_entries` — student_id, class_id, position, created_at. Unique (student_id, class_id).
 
-## Risks / things to watch
+RLS: every table scoped by `parent.auth_user_id = auth.uid()` for parents; admins via existing `has_role(auth.uid(),'admin')`. GRANTs included in same migration.
 
-- Stripe `cancel_at` only fires once — if you re-enroll a kid mid-November, code recomputes the cutoff
-- `registration_fees` uniqueness prevents double-billing the $10
-- Auto-pay requires login; cart blocks subscription checkout for anon users (already true)
+Capacity: server function `enrollOrWaitlist(student_id, class_id)` runs in a transaction — counts active enrollments, compares to `class_schedule.capacity`; inserts into `enrollments` if room, else `waitlist_entries` with next position. Unique constraints prevent double-booking.
 
-## Acceptance checks before I hand it back
+## Auth (account created during wizard)
 
-- Add two students, one class each, mixed payment plans → cart shows correct today's total + $20 in fees
-- Auto-pay subscription created with `cancel_at` = Nov 30 of current season
-- Account page shows both students with next charge date
-- `/register` has no card option; `/tuition` has no cash option
-- New schedule appears on home page
+Step 1 collects email + password alongside parent info. On Step 4 submit:
+1. `supabase.auth.signUp({ email, password, options: { emailRedirectTo: origin } })`.
+2. Server fn `createParentProfile` (uses `requireSupabaseAuth`) writes parent row, emergency contact, students, then enrollments/waitlists atomically.
+3. If email already exists → inline message asking to sign in first; pre-existing session reuses that auth user.
 
-Ready to proceed?
+Google sign-in added to /auth (existing) — not required for the wizard but offered.
+
+## Wizard UI (`/register` replaces current single-page form)
+
+Mobile-first, single-column, sticky bottom action bar with Back / Continue. Progress indicator across 4 steps. Validation via zod + react-hook-form on each step; cannot advance until current step valid. Wizard state persisted in `sessionStorage` so refresh doesn't lose data.
+
+- **Step 1 — Parent**: first/last name, email, password, phone, address, emergency contact name + phone.
+- **Step 2 — Students**: array field, "Add another student" appends a card; each: first/last, DOB (shadcn date picker), auto-calculated age display, grade (select), allergies, medical notes, shirt size (select). Remove button per student (min 1).
+- **Step 3 — Classes**: server fn `listClassesWithAvailability` returns all classes + `enrolled_count`, `capacity`, `remaining`, `is_full`. Rendered as cards showing name, description, age group, instructor, day, time, monthly tuition, "X spots left" or "Full — join waitlist" badge. Per student, multi-select which classes to enroll. Full classes show waitlist toggle instead.
+- **Step 4 — Review**: students list, chosen classes per student, registration fee (constant from config), monthly tuition sum, **Total Due Today** = placeholder (Stripe disabled — shows "$X (payment coming soon)"). Submit calls `submitFullRegistration` server fn.
+
+## Files
+
+New:
+- `supabase/migrations/<ts>_registration_rebuild.sql`
+- `src/lib/registration-v2.functions.ts` (listClassesWithAvailability, submitFullRegistration, enrollOrWaitlist helper)
+- `src/lib/registration-v2.schemas.ts` (shared zod schemas)
+- `src/routes/register.tsx` — rewritten as wizard shell
+- `src/components/register/Step1Parent.tsx`, `Step2Students.tsx`, `Step3Classes.tsx`, `Step4Review.tsx`, `WizardProgress.tsx`
+
+Edited:
+- `src/lib/schedule.functions.ts` — add description/age_group/instructor/monthly_tuition fields to schedule editor.
+- Admin schedule UI (`admin.index.tsx` schedule section) — surface new fields.
+
+Left untouched: all payments code, parent portal `/account`, admin registrations list, audit log, email templates, existing `registrations` table.
+
+## Admin
+
+Admin dashboard gets a new "Enrollments" + "Waitlist" tab fed by the new tables. The legacy "Registrations" tab keeps working against the old table until a follow-up migration ports historical data.
+
+## Testing (before finishing)
+
+Playwright scripts driving `http://localhost:8080/register`:
+1. Happy path — 1 parent, 2 students, 1 class each, signup succeeds, rows appear in DB, redirected to /account.
+2. Duplicate email at signup — inline error, no DB rows created.
+3. Full class — auto-routes to waitlist, waitlist_entries row created with position 1.
+4. Refresh mid-wizard — state restored from sessionStorage.
+5. Mobile viewport (402×717) — every step usable, no horizontal scroll.
+
+I'll fix any errors surfaced by these runs before declaring done.
+
+## Out of scope (will not touch this turn)
+
+- Stripe Checkout integration with new schema.
+- Migrating historical `registrations` rows into new tables.
+- Parent portal redesign against new schema.

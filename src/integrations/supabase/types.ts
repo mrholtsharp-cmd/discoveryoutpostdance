@@ -16,29 +16,41 @@ export type Database = {
     Tables: {
       class_schedule: {
         Row: {
+          age_group: string | null
           capacity: number | null
           class_name: string
           created_at: string
           day: string
+          description: string | null
           id: string
+          instructor: string | null
+          monthly_tuition_cents: number | null
           sort_order: number
           time: string
         }
         Insert: {
+          age_group?: string | null
           capacity?: number | null
           class_name: string
           created_at?: string
           day: string
+          description?: string | null
           id?: string
+          instructor?: string | null
+          monthly_tuition_cents?: number | null
           sort_order?: number
           time: string
         }
         Update: {
+          age_group?: string | null
           capacity?: number | null
           class_name?: string
           created_at?: string
           day?: string
+          description?: string | null
           id?: string
+          instructor?: string | null
+          monthly_tuition_cents?: number | null
           sort_order?: number
           time?: string
         }
@@ -131,6 +143,89 @@ export type Database = {
         }
         Relationships: []
       }
+      emergency_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          is_primary: boolean
+          name: string
+          parent_id: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          name: string
+          parent_id: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_primary?: boolean
+          name?: string
+          parent_id?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emergency_contacts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrollments: {
+        Row: {
+          class_id: string
+          created_at: string
+          enrolled_at: string
+          id: string
+          status: string
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          enrolled_at?: string
+          id?: string
+          status?: string
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          enrolled_at?: string
+          id?: string
+          status?: string
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollments_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "class_schedule"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollments_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_requests: {
         Row: {
           class_label: string
@@ -172,6 +267,42 @@ export type Database = {
           season_year?: number
           status?: string
           student_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      parents: {
+        Row: {
+          address: string | null
+          auth_user_id: string
+          created_at: string
+          email: string
+          first_name: string
+          id: string
+          last_name: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          auth_user_id: string
+          created_at?: string
+          email: string
+          first_name: string
+          id?: string
+          last_name: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          auth_user_id?: string
+          created_at?: string
+          email?: string
+          first_name?: string
+          id?: string
+          last_name?: string
+          phone?: string
           updated_at?: string
         }
         Relationships: []
@@ -427,6 +558,56 @@ export type Database = {
         }
         Relationships: []
       }
+      students: {
+        Row: {
+          allergies: string | null
+          created_at: string
+          date_of_birth: string
+          first_name: string
+          grade: string | null
+          id: string
+          last_name: string
+          medical_notes: string | null
+          parent_id: string
+          shirt_size: string | null
+          updated_at: string
+        }
+        Insert: {
+          allergies?: string | null
+          created_at?: string
+          date_of_birth: string
+          first_name: string
+          grade?: string | null
+          id?: string
+          last_name: string
+          medical_notes?: string | null
+          parent_id: string
+          shirt_size?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allergies?: string | null
+          created_at?: string
+          date_of_birth?: string
+          first_name?: string
+          grade?: string | null
+          id?: string
+          last_name?: string
+          medical_notes?: string | null
+          parent_id?: string
+          shirt_size?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "students_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           cancel_at_period_end: boolean | null
@@ -559,6 +740,48 @@ export type Database = {
         }
         Relationships: []
       }
+      waitlist_entries: {
+        Row: {
+          class_id: string
+          created_at: string
+          id: string
+          student_id: string
+          updated_at: string
+          wait_position: number
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          id?: string
+          student_id: string
+          updated_at?: string
+          wait_position: number
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          id?: string
+          student_id?: string
+          updated_at?: string
+          wait_position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_entries_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "class_schedule"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "students"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -571,6 +794,13 @@ export type Database = {
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
         Returns: number
+      }
+      enroll_or_waitlist: {
+        Args: { _class_id: string; _student_id: string }
+        Returns: {
+          placement: string
+          wait_position: number
+        }[]
       }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }

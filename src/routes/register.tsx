@@ -1,516 +1,312 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
-import { submitRegistration } from "@/lib/registrations.functions";
-import { listSchedule } from "@/lib/schedule.functions";
-import { listTuitionItems } from "@/lib/tuition.functions";
-import { createCartCheckoutSession } from "@/utils/payments.functions";
-import { getStripeEnvironment } from "@/lib/stripe";
-import {
-  getSeasonInfo,
-  proratedSemesterCents,
-  SEASON_TOTAL_MONTHS,
-} from "@/lib/season";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { supabase } from "@/integrations/supabase/client";
+import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
 import { toast } from "sonner";
-import { Check, ChevronLeft, CreditCard, FileText, DollarSign } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
     meta: [
-      { title: "Register — Discovery Outpost Performing Arts Dance" },
-      { name: "description", content: "Enroll online in Ballet, Jazz, Tap, or Musical Theatre classes at Discovery Outpost. Sign waivers and pay securely in one flow." },
-      { property: "og:title", content: "Register for Dance Classes — Discovery Outpost" },
-      { property: "og:description", content: "Enroll online and pay securely. Trial classes available for all ages and skill levels." },
-      { property: "og:url", content: "/register" },
+      { title: "Register — Discovery Outpost" },
+      { name: "description", content: "Create your parent account and enroll your students in classes at Discovery Outpost." },
+      { property: "og:title", content: "Register for Classes — Discovery Outpost" },
+      { property: "og:description", content: "Multi-step registration: parent info, students, class selection, review." },
     ],
-    links: [{ rel: "canonical", href: "/register" }],
   }),
-  validateSearch: (s: Record<string, unknown>) => ({
-    trial: s.trial === true || s.trial === "true",
-    class: typeof s.class === "string" ? s.class : undefined,
-  }),
-  component: RegisterPage,
+  component: RegisterWizard,
 });
 
-const PROGRAMS = [
-  { id: "Dance", label: "Dance", desc: "Ballet, Jazz, Tap" },
-  { id: "Musical Theater", label: "Musical Theatre", desc: "Performance + dance" },
-] as const;
-type ProgramId = (typeof PROGRAMS)[number]["id"];
+const REGISTRATION_FEE_CENTS = 4500;
+const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
 
-type TuitionRow = {
-  id: string;
-  kind: string;
-  name: string;
-  display_price: string;
-  stripe_price_id: string;
-  description?: string;
-  active: boolean;
+type StudentDraft = {
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  grade: string;
+  allergies: string;
+  medical_notes: string;
+  shirt_size: string;
+  class_ids: string[];
 };
 
-type ScheduleRow = {
-  id: string;
-  day: string;
-  class_name: string;
-  time: string;
+type WizardState = {
+  step: 1 | 2 | 3 | 4;
+  parent: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    password: string;
+    phone: string;
+    address: string;
+    emergency_contact_name: string;
+    emergency_contact_phone: string;
+  };
+  students: StudentDraft[];
 };
 
-type ClassChoice = {
-  baseName: string;
-  monthly?: TuitionRow;
-  semester?: TuitionRow;
-  scheduleMatches: ScheduleRow[];
+const emptyStudent = (): StudentDraft => ({
+  first_name: "", last_name: "", date_of_birth: "", grade: "",
+  allergies: "", medical_notes: "", shirt_size: "", class_ids: [],
+});
+
+const initialState: WizardState = {
+  step: 1,
+  parent: {
+    first_name: "", last_name: "", email: "", password: "", phone: "",
+    address: "", emergency_contact_name: "", emergency_contact_phone: "",
+  },
+  students: [emptyStudent()],
 };
 
-function priceToCents(display: string): number {
-  const m = display.match(/\$([\d.,]+)/);
-  if (!m) return 0;
-  return Math.round(parseFloat(m[1].replace(/,/g, "")) * 100);
+function calcAge(dob: string): number | null {
+  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+  const d = new Date(dob + "T00:00:00");
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age--;
+  return age;
 }
 
-function programOf(name: string): ProgramId {
-  if (/musical theater/i.test(name)) return "Musical Theater";
-  return "Dance";
-}
+const SHIRT_SIZES = ["YXS","YS","YM","YL","YXL","AS","AM","AL","AXL","AXXL"];
+const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12","Adult"];
 
-function classKey(scheduleClassName: string): string {
-  // Try to pull the age range "(Ages X–Y)" or the leading words before "Class"
-  const ages = scheduleClassName.match(/\(Ages[^)]+\)/i);
-  return ages ? ages[0].toLowerCase() : scheduleClassName.toLowerCase();
-}
-
-function RegisterPage() {
-  const { trial } = Route.useSearch();
-  const sched = useServerFn(listSchedule);
-  const tuition = useServerFn(listTuitionItems);
-  const schedule = useQuery({ queryKey: ["schedule"], queryFn: () => sched() });
-  const tuitionQ = useQuery({ queryKey: ["tuition"], queryFn: () => tuition() });
-  const submit = useServerFn(submitRegistration);
-  const startCheckout = useServerFn(createCartCheckoutSession);
-
-  const [step, setStep] = useState(1);
-  const [program, setProgram] = useState<ProgramId | "">("");
-  const [choice, setChoice] = useState<ClassChoice | null>(null);
-  const [plan, setPlan] = useState<"monthly" | "semester">("monthly");
-  const [scheduleId, setScheduleId] = useState<string>("");
-  const [waiver, setWaiver] = useState({ liability: false, media: false, parent: false, signature: "" });
-  const [form, setForm] = useState({
-    student_first_name: "",
-    student_last_name: "",
-    date_of_birth: "",
-    parent_name: "",
-    email: "",
-    phone: "",
-    parent_address: "",
-    age: "",
-    experience_level: "Beginner" as "Beginner" | "Intermediate" | "Advanced",
-    emergency_contact: "",
-    medical_notes: "",
+function RegisterWizard() {
+  const navigate = useNavigate();
+  const [state, setState] = useState<WizardState>(() => {
+    if (typeof window === "undefined") return initialState;
+    try {
+      const raw = sessionStorage.getItem(WIZARD_STORAGE_KEY);
+      if (raw) return { ...initialState, ...JSON.parse(raw) };
+    } catch {}
+    return initialState;
   });
-  const [done, setDone] = useState<null | { mode: "card" | "cash" | "invoice"; id: string | null }>(null);
-  const [submitting, setSubmitting] = useState<null | "card" | "cash" | "invoice">(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Group tuition items into one class entry with optional monthly + semester
-  const classChoices: ClassChoice[] = useMemo(() => {
-    if (!tuitionQ.data) return [];
-    const items = (tuitionQ.data as TuitionRow[]).filter(
-      (i) => i.active && (i.kind === "class_monthly" || i.kind === "class_semester"),
-    );
-    const byName = new Map<string, ClassChoice>();
-    for (const item of items) {
-      const cur = byName.get(item.name) ?? { baseName: item.name, scheduleMatches: [] };
-      if (item.kind === "class_monthly") cur.monthly = item;
-      else if (item.kind === "class_semester") cur.semester = item;
-      byName.set(item.name, cur);
-    }
-    const sched = (schedule.data ?? []) as ScheduleRow[];
-    for (const c of byName.values()) {
-      const key = classKey(c.baseName);
-      c.scheduleMatches = sched.filter((s) => classKey(s.class_name) === key || s.class_name.toLowerCase().includes(key));
-    }
-    return Array.from(byName.values()).filter((c) => !program || programOf(c.baseName) === program);
-  }, [tuitionQ.data, schedule.data, program]);
+  useEffect(() => {
+    try {
+      const { password: _pw, ...rest } = state.parent;
+      void _pw;
+      sessionStorage.setItem(WIZARD_STORAGE_KEY, JSON.stringify({ ...state, parent: { ...rest, password: "" } }));
+    } catch {}
+  }, [state]);
 
-  const selectedItem = choice
-    ? plan === "monthly" ? choice.monthly : choice.semester
-    : undefined;
+  const classesQuery = useQuery({
+    queryKey: ["wizard-classes"],
+    queryFn: () => listClassesWithAvailability(),
+  });
 
-  const season = useMemo(() => getSeasonInfo(), []);
-  const semesterCents = choice?.semester ? priceToCents(choice.semester.display_price) : 0;
-  const proratedCents = semesterCents > 0
-    ? proratedSemesterCents(semesterCents, season.monthsRemaining)
-    : 0;
+  const submitFn = useServerFn(submitFullRegistration);
 
-  function canAdvance(): boolean {
-    if (step === 1) return !!program;
-    if (step === 2) return !!choice && !!selectedItem;
-    if (step === 3)
-      return !!form.student_first_name && !!form.student_last_name
-        && !!form.date_of_birth && !!form.parent_name && !!form.email
-        && !!form.phone && !!form.parent_address && !!form.age
-        && !!form.emergency_contact;
-    if (step === 4)
-      return waiver.liability && waiver.media && waiver.parent && waiver.signature.trim().length >= 2;
-    return true;
+  function setStep(step: WizardState["step"]) { setState((s) => ({ ...s, step })); }
+  function updateParent<K extends keyof WizardState["parent"]>(k: K, v: WizardState["parent"][K]) {
+    setState((s) => ({ ...s, parent: { ...s.parent, [k]: v } }));
+  }
+  function updateStudent(i: number, patch: Partial<StudentDraft>) {
+    setState((s) => ({ ...s, students: s.students.map((stu, idx) => idx === i ? { ...stu, ...patch } : stu) }));
+  }
+  function addStudent() { setState((s) => ({ ...s, students: [...s.students, emptyStudent()] })); }
+  function removeStudent(i: number) {
+    setState((s) => ({ ...s, students: s.students.length > 1 ? s.students.filter((_, idx) => idx !== i) : s.students }));
+  }
+  function toggleClassForStudent(studentIdx: number, classId: string) {
+    setState((s) => ({
+      ...s,
+      students: s.students.map((stu, idx) => {
+        if (idx !== studentIdx) return stu;
+        const has = stu.class_ids.includes(classId);
+        return { ...stu, class_ids: has ? stu.class_ids.filter((c) => c !== classId) : [...stu.class_ids, classId] };
+      }),
+    }));
   }
 
-  async function submitWithChoice(mode: "card" | "cash" | "invoice") {
-    if (!choice || !selectedItem) return;
-    setSubmitting(mode);
+  const step1Valid = useMemo(() => {
+    const p = state.parent;
+    return p.first_name.trim() && p.last_name.trim()
+      && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(p.email)
+      && p.password.length >= 8
+      && p.phone.trim().length >= 7
+      && p.address.trim().length > 0
+      && p.emergency_contact_name.trim()
+      && p.emergency_contact_phone.trim().length >= 7;
+  }, [state.parent]);
+
+  const step2Valid = useMemo(() => state.students.every((s) =>
+    s.first_name.trim() && s.last_name.trim() && /^\d{4}-\d{2}-\d{2}$/.test(s.date_of_birth)
+  ), [state.students]);
+
+  const step3Valid = useMemo(() => state.students.every((s) => s.class_ids.length > 0), [state.students]);
+
+  const totalMonthly = useMemo(() => {
+    if (!classesQuery.data) return 0;
+    const map = new Map(classesQuery.data.map((c) => [c.id, c.monthly_tuition_cents ?? 0]));
+    return state.students.reduce((sum, s) => sum + s.class_ids.reduce((a, id) => a + (map.get(id) ?? 0), 0), 0);
+  }, [state.students, classesQuery.data]);
+
+  async function handleSubmitAll() {
+    if (submitting) return;
+    setSubmitting(true);
     try {
-      const result = await submit({
+      // Sign up or sign in
+      const email = state.parent.email.trim().toLowerCase();
+      const password = state.parent.password;
+      const { data: existingSession } = await supabase.auth.getSession();
+      if (!existingSession.session) {
+        const { data: signUp, error: signUpErr } = await supabase.auth.signUp({
+          email, password, options: { emailRedirectTo: `${window.location.origin}/account` },
+        });
+        if (signUpErr) {
+          if (signUpErr.message.toLowerCase().includes("registered")) {
+            // Try sign in
+            const { error: siErr } = await supabase.auth.signInWithPassword({ email, password });
+            if (siErr) throw new Error("An account with this email already exists. Please sign in first, then continue.");
+          } else {
+            throw signUpErr;
+          }
+        } else if (!signUp.session) {
+          // Email confirmation flow — sign in with password just in case
+          const { error: siErr } = await supabase.auth.signInWithPassword({ email, password });
+          if (siErr) throw new Error("Account created but could not sign in automatically. Check your email to confirm.");
+        }
+      }
+
+      const result = await submitFn({
         data: {
-          student_name: `${form.student_first_name} ${form.student_last_name}`.trim(),
-          student_first_name: form.student_first_name,
-          student_last_name: form.student_last_name,
-          parent_name: form.parent_name,
-          email: form.email,
-          phone: form.phone,
-          parent_address: form.parent_address,
-          age: Number(form.age),
-          desired_class: (program === "Musical Theater" ? "Musical Theater" : "Ballet") as
-            "Ballet" | "Musical Theater",
-          experience_level: form.experience_level,
-          emergency_contact: form.emergency_contact,
-          medical_notes: form.medical_notes || null,
-          is_trial: !!trial,
-          program,
-          selected_class_id: scheduleId || null,
-          tuition_item_id: selectedItem.id,
-          payment_choice: mode,
-          waiver_signature: waiver.signature,
-          media_release: waiver.media,
-          parent_agreement: waiver.parent,
-          date_of_birth: form.date_of_birth || null,
+          parent: {
+            first_name: state.parent.first_name,
+            last_name: state.parent.last_name,
+            email,
+            phone: state.parent.phone,
+            address: state.parent.address,
+          },
+          emergency_contact: {
+            name: state.parent.emergency_contact_name,
+            phone: state.parent.emergency_contact_phone,
+          },
+          students: state.students.map((s) => ({
+            first_name: s.first_name,
+            last_name: s.last_name,
+            date_of_birth: s.date_of_birth,
+            grade: s.grade || null,
+            allergies: s.allergies || null,
+            medical_notes: s.medical_notes || null,
+            shirt_size: s.shirt_size || null,
+            class_ids: s.class_ids,
+          })),
         },
       });
-      const regId = (result && typeof result === "object" && "id" in result ? (result as any).id : null) as string | null;
 
-      if (mode === "card") {
-        const includeRegFee = true; // $10 season registration fee
-        const items = [{ priceId: selectedItem.stripe_price_id, quantity: 1 }];
-        if (includeRegFee) items.push({ priceId: "do_registration_fee", quantity: 1 });
-        const res = await startCheckout({
-          data: {
-            items,
-            customerEmail: form.email,
-            returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-            environment: getStripeEnvironment(),
-            paymentPlan: plan === "semester" ? "semester" : "auto_pay",
-            registrationId: regId ?? undefined,
-          },
-        });
-        if ("error" in res) throw new Error(res.error);
-        window.location.href = (res as { url: string }).url;
-        return;
-      }
-      setDone({ mode, id: regId });
+      const waitlisted = result.placements.filter((p) => p.placement === "waitlisted").length;
+      const enrolled = result.placements.filter((p) => p.placement === "enrolled").length;
+      toast.success(`Registered! ${enrolled} enrolled, ${waitlisted} waitlisted.`);
+      sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+      navigate({ to: "/account" });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setSubmitting(null);
+      setSubmitting(false);
     }
-  }
-
-  if (done) {
-    return (
-      <Layout>
-        <section className="mx-auto max-w-xl px-6 py-24 text-center">
-          <div className="mx-auto h-16 w-16 rounded-full bg-accent flex items-center justify-center">
-            <Check className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="font-display text-4xl mt-6">Registration received!</h1>
-          {done.mode === "cash" && (
-            <p className="mt-4 text-muted-foreground">
-              You're registered as a <span className="font-semibold text-foreground">cash payer</span>.
-              Bring tuition in cash to your first class — you'll save $5 off each payment.
-              We'll follow up by email shortly.
-            </p>
-          )}
-          {done.mode === "invoice" && (
-            <p className="mt-4 text-muted-foreground">
-              Your invoice request is in. A studio admin will send an itemized invoice to{" "}
-              <span className="font-semibold text-foreground">{form.email}</span> within 1 business day.
-              Your student is held in the class pending payment.
-            </p>
-          )}
-          <Button asChild className="mt-8 rounded-full"><Link to="/">Back to home</Link></Button>
-        </section>
-      </Layout>
-    );
   }
 
   return (
     <Layout>
-      <PaymentTestModeBanner />
-      <section className="mx-auto max-w-3xl px-6 py-12 sm:py-16">
-        <span className="text-xs uppercase tracking-[0.25em] text-primary">
-          {trial ? "Book a Trial Class" : "Online Enrollment"}
-        </span>
-        <h1 className="font-display text-4xl sm:text-5xl mt-3">Register your student</h1>
-        <Stepper step={step} />
+      <section className="mx-auto max-w-3xl px-4 py-8 pb-32 sm:py-12">
+        <h1 className="font-display text-3xl sm:text-4xl">Register</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Create your account and enroll your students in just a few steps.</p>
 
-        <Card className="mt-6 p-6 sm:p-8">
-          {step === 1 && (
-            <StepBlock title="Choose a program" subtitle="Pick what your student wants to take.">
-              <div className="grid sm:grid-cols-2 gap-3">
-                {PROGRAMS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setProgram(p.id)}
-                    className={`text-left rounded-2xl border p-5 transition ${
-                      program === p.id ? "border-primary bg-accent/40" : "border-border hover:border-primary/50"
-                    }`}
-                  >
-                    <div className="font-display text-xl">{p.label}</div>
-                    <div className="text-sm text-muted-foreground mt-1">{p.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </StepBlock>
+        <WizardProgress current={state.step} />
+
+        <Card className="mt-6 p-5 sm:p-7">
+          {state.step === 1 && <Step1Parent state={state.parent} update={updateParent} />}
+          {state.step === 2 && (
+            <Step2Students students={state.students} update={updateStudent} add={addStudent} remove={removeStudent} />
           )}
-
-          {step === 2 && (
-            <StepBlock title="Choose a class & plan" subtitle="Pick the age-appropriate class. You can pay monthly or for the full Aug–Nov semester.">
-              {tuitionQ.isLoading && <p className="text-sm text-muted-foreground">Loading classes…</p>}
-              <div className="space-y-3">
-                {classChoices.map((c) => {
-                  const active = choice?.baseName === c.baseName;
-                  return (
-                    <div key={c.baseName} className={`rounded-2xl border p-4 ${active ? "border-primary" : "border-border"}`}>
-                      <button
-                        onClick={() => { setChoice(c); setScheduleId(c.scheduleMatches[0]?.id ?? ""); }}
-                        className="w-full text-left flex items-start justify-between gap-4"
-                      >
-                        <div>
-                          <div className="font-semibold">{c.baseName}</div>
-                          {c.scheduleMatches.length > 0 && (
-                            <div className="text-xs text-muted-foreground mt-0.5">
-                              {c.scheduleMatches.map((s) => `${s.day} ${s.time}`).join(" · ")}
-                            </div>
-                          )}
-                        </div>
-                        <div className="text-right text-sm">
-                          {c.monthly && <div>{c.monthly.display_price}</div>}
-                          {c.semester && <div className="text-muted-foreground">{c.semester.display_price} semester</div>}
-                        </div>
-                      </button>
-                      {active && (
-                        <div className="mt-4 pt-4 border-t space-y-3">
-                          <RadioGroup value={plan} onValueChange={(v) => setPlan(v as "monthly" | "semester")} className="grid sm:grid-cols-2 gap-2">
-                            {c.monthly && (
-                              <PlanOption value="monthly" label="Monthly auto-pay" detail={`${c.monthly.display_price} · charged Aug–Nov`} />
-                            )}
-                            {c.semester && (
-                              <PlanOption
-                                value="semester"
-                                label="Pay full semester"
-                                detail={
-                                  season.monthsRemaining > 0 && season.monthsRemaining < SEASON_TOTAL_MONTHS
-                                    ? `Prorated $${(proratedCents / 100).toFixed(2)} (${season.monthsRemaining}/${SEASON_TOTAL_MONTHS} mo)`
-                                    : `${c.semester.display_price} one-time`
-                                }
-                              />
-                            )}
-                          </RadioGroup>
-                          {c.scheduleMatches.length > 1 && (
-                            <div className="space-y-1.5">
-                              <Label className="text-xs">Preferred time</Label>
-                              <select
-                                className="w-full rounded-md border bg-background p-2 text-sm"
-                                value={scheduleId}
-                                onChange={(e) => setScheduleId(e.target.value)}
-                              >
-                                {c.scheduleMatches.map((s) => (
-                                  <option key={s.id} value={s.id}>{s.day} — {s.time}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                {!tuitionQ.isLoading && classChoices.length === 0 && (
-                  <p className="text-sm text-muted-foreground">No active classes for this program yet.</p>
-                )}
-              </div>
-            </StepBlock>
+          {state.step === 3 && (
+            <Step3Classes
+              students={state.students}
+              classes={classesQuery.data ?? []}
+              loading={classesQuery.isLoading}
+              toggle={toggleClassForStudent}
+            />
           )}
-
-          {step === 3 && (
-            <StepBlock title="Student information" subtitle="Who's enrolling, and how do we reach you?">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Field label="Student first name">
-                  <Input value={form.student_first_name} onChange={(e) => setForm({ ...form, student_first_name: e.target.value })} />
-                </Field>
-                <Field label="Student last name">
-                  <Input value={form.student_last_name} onChange={(e) => setForm({ ...form, student_last_name: e.target.value })} />
-                </Field>
-                <Field label="Date of birth">
-                  <Input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
-                </Field>
-                <Field label="Student age">
-                  <Input type="number" min={2} max={99} value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
-                </Field>
-                <Field label="Experience level">
-                  <select className="w-full rounded-md border bg-background p-2 text-sm"
-                    value={form.experience_level}
-                    onChange={(e) => setForm({ ...form, experience_level: e.target.value as any })}>
-                    {["Beginner", "Intermediate", "Advanced"].map((l) => <option key={l} value={l}>{l}</option>)}
-                  </select>
-                </Field>
-                <Field label="Parent / guardian name">
-                  <Input value={form.parent_name} onChange={(e) => setForm({ ...form, parent_name: e.target.value })} />
-                </Field>
-                <Field label="Emergency contact (name + phone)">
-                  <Input value={form.emergency_contact} onChange={(e) => setForm({ ...form, emergency_contact: e.target.value })} />
-                </Field>
-                <Field label="Email">
-                  <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
-                </Field>
-                <Field label="Phone">
-                  <Input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
-                </Field>
-              </div>
-              <Field label="Home address">
-                <Input
-                  placeholder="Street, City, State ZIP"
-                  value={form.parent_address}
-                  onChange={(e) => setForm({ ...form, parent_address: e.target.value })}
-                />
-              </Field>
-              <Field label="Medical notes / allergies (optional)">
-                <Textarea rows={3} value={form.medical_notes} onChange={(e) => setForm({ ...form, medical_notes: e.target.value })} />
-              </Field>
-            </StepBlock>
-          )}
-
-          {step === 4 && (
-            <StepBlock title="Waivers & agreements" subtitle="Required for participation.">
-              <WaiverBox title="Liability Waiver">
-                I understand dance involves physical activity with inherent risk of injury, and I release
-                Discovery Outpost Performing Arts, its instructors and staff from liability for injuries
-                sustained during classes, rehearsals, or performances.
-              </WaiverBox>
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox checked={waiver.liability} onCheckedChange={(v) => setWaiver({ ...waiver, liability: !!v })} />
-                <span>I agree to the liability waiver above.</span>
-              </label>
-
-              <WaiverBox title="Media Release">
-                I grant Discovery Outpost permission to use photos and video of my student in studio
-                promotional materials (social media, website, recital programs).
-              </WaiverBox>
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox checked={waiver.media} onCheckedChange={(v) => setWaiver({ ...waiver, media: !!v })} />
-                <span>I agree to the media release.</span>
-              </label>
-
-              <WaiverBox title="Parent Agreement">
-                I will pay tuition on time, follow studio attendance and dress-code policies, and notify
-                staff of any changes affecting my student's participation.
-              </WaiverBox>
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox checked={waiver.parent} onCheckedChange={(v) => setWaiver({ ...waiver, parent: !!v })} />
-                <span>I agree to the parent agreement.</span>
-              </label>
-
-              <Field label="Type your full name as electronic signature">
-                <Input value={waiver.signature} onChange={(e) => setWaiver({ ...waiver, signature: e.target.value })} placeholder="Parent / guardian full name" />
-              </Field>
-            </StepBlock>
-          )}
-
-          {step === 5 && (
-            <StepBlock title="How would you like to pay?" subtitle="Choose now, change later from your account.">
-              <Summary
-                program={program}
-                className={choice?.baseName ?? ""}
-                plan={plan}
-                price={selectedItem?.display_price ?? ""}
-                proratedNote={
-                  plan === "semester" && proratedCents > 0
-                  && proratedCents !== semesterCents
-                    ? `Prorated to $${(proratedCents / 100).toFixed(2)} (${season.monthsRemaining}/${SEASON_TOTAL_MONTHS} months)`
-                    : null
-                }
-              />
-              <div className="grid gap-3 mt-4">
-                <PayOption
-                  icon={<CreditCard className="h-5 w-5" />}
-                  title="Register & Pay Now"
-                  detail="Visa, Mastercard, Amex, Apple Pay, Google Pay. Instant enrollment + email receipt."
-                  primary
-                  loading={submitting === "card"}
-                  onClick={() => submitWithChoice("card")}
-                />
-                <PayOption
-                  icon={<DollarSign className="h-5 w-5" />}
-                  title="Pay Cash at Studio"
-                  detail="Bring tuition in cash to first class — save $5 each payment."
-                  loading={submitting === "cash"}
-                  onClick={() => submitWithChoice("cash")}
-                />
-                <PayOption
-                  icon={<FileText className="h-5 w-5" />}
-                  title="Request an Invoice"
-                  detail="Studio admin sends an itemized invoice to your email. Enrollment held pending payment."
-                  loading={submitting === "invoice"}
-                  onClick={() => submitWithChoice("invoice")}
-                />
-              </div>
-            </StepBlock>
-          )}
-
-          {step < 5 && (
-            <div className="mt-8 flex items-center justify-between">
-              <Button variant="ghost" disabled={step === 1} onClick={() => setStep(step - 1)} className="rounded-full">
-                <ChevronLeft className="h-4 w-4 mr-1" /> Back
-              </Button>
-              <Button disabled={!canAdvance()} onClick={() => setStep(step + 1)} className="rounded-full px-8">
-                Continue
-              </Button>
-            </div>
-          )}
-          {step === 5 && (
-            <div className="mt-6">
-              <Button variant="ghost" onClick={() => setStep(4)} className="rounded-full">
-                <ChevronLeft className="h-4 w-4 mr-1" /> Back
-              </Button>
-            </div>
+          {state.step === 4 && (
+            <Step4Review
+              state={state}
+              classes={classesQuery.data ?? []}
+              totalMonthly={totalMonthly}
+            />
           )}
         </Card>
+
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+            <Button
+              type="button" variant="outline"
+              onClick={() => setStep(Math.max(1, state.step - 1) as WizardState["step"])}
+              disabled={state.step === 1 || submitting}
+            >
+              <ChevronLeft className="mr-1 h-4 w-4" /> Back
+            </Button>
+            <div className="text-xs text-muted-foreground">Step {state.step} of 4</div>
+            {state.step < 4 ? (
+              <Button
+                type="button"
+                onClick={() => setStep((state.step + 1) as WizardState["step"])}
+                disabled={
+                  (state.step === 1 && !step1Valid) ||
+                  (state.step === 2 && !step2Valid) ||
+                  (state.step === 3 && !step3Valid)
+                }
+              >
+                Continue <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleSubmitAll} disabled={submitting}>
+                {submitting ? "Submitting…" : "Submit Registration"}
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Already have an account? <Link to="/auth" className="underline">Sign in</Link>
+        </p>
       </section>
     </Layout>
   );
 }
 
-function Stepper({ step }: { step: number }) {
-  const steps = ["Program", "Class", "Student", "Waivers", "Payment"];
+function WizardProgress({ current }: { current: 1 | 2 | 3 | 4 }) {
+  const steps = [
+    { n: 1, label: "Parent", icon: Users },
+    { n: 2, label: "Students", icon: GraduationCap },
+    { n: 3, label: "Classes", icon: CalendarDays },
+    { n: 4, label: "Review", icon: ClipboardCheck },
+  ] as const;
   return (
-    <ol className="mt-6 flex flex-wrap items-center gap-2 text-xs">
-      {steps.map((s, i) => {
-        const n = i + 1;
-        const active = step === n;
-        const done = step > n;
+    <ol className="mt-6 grid grid-cols-4 gap-2 sm:gap-4">
+      {steps.map(({ n, label, icon: Icon }) => {
+        const active = n === current;
+        const done = n < current;
         return (
-          <li key={s} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${
-            active ? "border-primary bg-accent/40 text-foreground" :
-            done ? "border-primary/50 text-primary" : "border-border text-muted-foreground"
-          }`}>
-            <span className="font-mono">{n}</span> {s}
+          <li key={n} className="flex flex-col items-center text-center">
+            <div className={`flex h-9 w-9 items-center justify-center rounded-full border ${active ? "border-primary bg-primary text-primary-foreground" : done ? "border-primary bg-primary/10 text-primary" : "border-muted text-muted-foreground"}`}>
+              {done ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+            </div>
+            <span className={`mt-1 text-[11px] sm:text-xs ${active ? "font-semibold" : "text-muted-foreground"}`}>{label}</span>
           </li>
         );
       })}
@@ -518,84 +314,248 @@ function Stepper({ step }: { step: number }) {
   );
 }
 
-function StepBlock({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function Step1Parent({
+  state, update,
+}: { state: WizardState["parent"]; update: <K extends keyof WizardState["parent"]>(k: K, v: WizardState["parent"][K]) => void }) {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="font-display text-2xl">{title}</h2>
-        {subtitle && <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>}
+        <h2 className="font-display text-xl">Parent Information</h2>
+        <p className="text-sm text-muted-foreground">We'll create your account with this email and password.</p>
       </div>
-      {children}
-    </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <Label className="text-sm">{label}</Label>
-      {children}
-    </div>
-  );
-}
-
-function WaiverBox({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border bg-muted/30 p-4">
-      <div className="font-semibold text-sm">{title}</div>
-      <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">{children}</p>
-    </div>
-  );
-}
-
-function PlanOption({ value, label, detail }: { value: string; label: string; detail: string }) {
-  return (
-    <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer hover:border-primary/60">
-      <RadioGroupItem value={value} className="mt-0.5" />
-      <div>
-        <div className="text-sm font-medium">{label}</div>
-        <div className="text-xs text-muted-foreground">{detail}</div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="First Name" required>
+          <Input value={state.first_name} onChange={(e) => update("first_name", e.target.value)} autoComplete="given-name" />
+        </Field>
+        <Field label="Last Name" required>
+          <Input value={state.last_name} onChange={(e) => update("last_name", e.target.value)} autoComplete="family-name" />
+        </Field>
+        <Field label="Email" required>
+          <Input type="email" value={state.email} onChange={(e) => update("email", e.target.value)} autoComplete="email" />
+        </Field>
+        <Field label="Password (min 8 chars)" required>
+          <Input type="password" value={state.password} onChange={(e) => update("password", e.target.value)} autoComplete="new-password" />
+        </Field>
+        <Field label="Phone" required>
+          <Input type="tel" value={state.phone} onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
+        </Field>
+        <Field label="Address" required className="sm:col-span-2">
+          <Input value={state.address} onChange={(e) => update("address", e.target.value)} autoComplete="street-address" />
+        </Field>
       </div>
-    </label>
+      <div className="pt-2">
+        <h3 className="text-base font-semibold">Emergency Contact</h3>
+        <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Name" required>
+            <Input value={state.emergency_contact_name} onChange={(e) => update("emergency_contact_name", e.target.value)} />
+          </Field>
+          <Field label="Phone" required>
+            <Input type="tel" value={state.emergency_contact_phone} onChange={(e) => update("emergency_contact_phone", e.target.value)} />
+          </Field>
+        </div>
+      </div>
+    </div>
   );
 }
 
-function PayOption({
-  icon, title, detail, primary, loading, onClick,
+function Step2Students({
+  students, update, add, remove,
 }: {
-  icon: React.ReactNode; title: string; detail: string;
-  primary?: boolean; loading?: boolean; onClick: () => void;
+  students: StudentDraft[];
+  update: (i: number, patch: Partial<StudentDraft>) => void;
+  add: () => void;
+  remove: (i: number) => void;
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={loading}
-      className={`text-left rounded-2xl border p-4 sm:p-5 flex items-start gap-4 transition disabled:opacity-60 ${
-        primary ? "border-primary bg-primary/5 hover:bg-primary/10" : "hover:border-primary/50"
-      }`}
-    >
-      <div className={`h-10 w-10 rounded-full flex items-center justify-center shrink-0 ${
-        primary ? "bg-primary text-primary-foreground" : "bg-accent text-foreground"
-      }`}>{icon}</div>
+    <div className="space-y-5">
       <div>
-        <div className="font-semibold">{loading ? "Submitting…" : title}</div>
-        <div className="text-xs text-muted-foreground mt-1">{detail}</div>
+        <h2 className="font-display text-xl">Student Information</h2>
+        <p className="text-sm text-muted-foreground">Add as many students as you'd like to register.</p>
       </div>
-    </button>
+      <div className="space-y-4">
+        {students.map((s, i) => {
+          const age = calcAge(s.date_of_birth);
+          return (
+            <Card key={i} className="p-4 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Student {i + 1}</h3>
+                {students.length > 1 && (
+                  <Button type="button" variant="ghost" size="sm" onClick={() => remove(i)}>
+                    <Trash2 className="mr-1 h-4 w-4" /> Remove
+                  </Button>
+                )}
+              </div>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="First Name" required>
+                  <Input value={s.first_name} onChange={(e) => update(i, { first_name: e.target.value })} />
+                </Field>
+                <Field label="Last Name" required>
+                  <Input value={s.last_name} onChange={(e) => update(i, { last_name: e.target.value })} />
+                </Field>
+                <Field label="Birthday" required>
+                  <Input type="date" value={s.date_of_birth} onChange={(e) => update(i, { date_of_birth: e.target.value })} />
+                </Field>
+                <Field label="Age (calculated)">
+                  <Input value={age == null ? "" : String(age)} disabled placeholder="—" />
+                </Field>
+                <Field label="Grade">
+                  <Select value={s.grade || undefined} onValueChange={(v) => update(i, { grade: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
+                    <SelectContent>
+                      {GRADES.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Shirt Size">
+                  <Select value={s.shirt_size || undefined} onValueChange={(v) => update(i, { shirt_size: v })}>
+                    <SelectTrigger><SelectValue placeholder="Select size" /></SelectTrigger>
+                    <SelectContent>
+                      {SHIRT_SIZES.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Allergies" className="sm:col-span-2">
+                  <Textarea rows={2} value={s.allergies} onChange={(e) => update(i, { allergies: e.target.value })} />
+                </Field>
+                <Field label="Medical Notes" className="sm:col-span-2">
+                  <Textarea rows={2} value={s.medical_notes} onChange={(e) => update(i, { medical_notes: e.target.value })} />
+                </Field>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+      <Button type="button" variant="outline" onClick={add}>
+        <Plus className="mr-1 h-4 w-4" /> Add Another Student
+      </Button>
+    </div>
   );
 }
 
-function Summary({ program, className, plan, price, proratedNote }: {
-  program: string; className: string; plan: string; price: string; proratedNote: string | null;
-}) {
+type ClassRow = Awaited<ReturnType<typeof listClassesWithAvailability>>[number];
+
+function Step3Classes({
+  students, classes, loading, toggle,
+}: { students: StudentDraft[]; classes: ClassRow[]; loading: boolean; toggle: (studentIdx: number, classId: string) => void }) {
+  if (loading) return <p className="py-8 text-center text-sm text-muted-foreground">Loading classes…</p>;
+  if (classes.length === 0) return <p className="py-8 text-center text-sm text-muted-foreground">No classes available yet. Please check back soon.</p>;
   return (
-    <div className="rounded-xl border bg-muted/30 p-4 text-sm">
-      <div className="flex justify-between"><span className="text-muted-foreground">Program</span><span className="font-medium">{program}</span></div>
-      <div className="flex justify-between mt-1"><span className="text-muted-foreground">Class</span><span className="font-medium">{className}</span></div>
-      <div className="flex justify-between mt-1"><span className="text-muted-foreground">Plan</span><span className="font-medium capitalize">{plan}</span></div>
-      <div className="flex justify-between mt-1"><span className="text-muted-foreground">Price</span><span className="font-medium">{price}</span></div>
-      {proratedNote && <div className="text-xs text-primary mt-2">{proratedNote}</div>}
-      <div className="text-xs text-muted-foreground mt-2">+ $10 season registration fee (added at checkout for card payers)</div>
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-xl">Class Selection</h2>
+        <p className="text-sm text-muted-foreground">Pick at least one class per student. Full classes will place the student on the waitlist.</p>
+      </div>
+      {students.map((s, i) => (
+        <div key={i}>
+          <h3 className="font-semibold">{s.first_name || "Student"} {s.last_name}</h3>
+          <div className="mt-3 grid grid-cols-1 gap-3">
+            {classes.map((c) => {
+              const selected = s.class_ids.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => toggle(i, c.id)}
+                  className={`text-left rounded-md border p-4 transition-colors ${selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold">{c.class_name}</span>
+                        {c.age_group && <Badge variant="secondary">{c.age_group}</Badge>}
+                        {c.is_full ? (
+                          <Badge variant="destructive">Full — Waitlist</Badge>
+                        ) : c.remaining != null ? (
+                          <Badge variant="outline">{c.remaining} spot{c.remaining === 1 ? "" : "s"} left</Badge>
+                        ) : null}
+                      </div>
+                      {c.description && <p className="mt-1 text-sm text-muted-foreground">{c.description}</p>}
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {c.day} · {c.time}
+                        {c.instructor ? ` · ${c.instructor}` : ""}
+                      </p>
+                      {c.monthly_tuition_cents != null && (
+                        <p className="mt-1 text-sm font-medium">${(c.monthly_tuition_cents / 100).toFixed(2)}/mo</p>
+                      )}
+                    </div>
+                    <div aria-hidden className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}>
+                      {selected && <Check className="h-3.5 w-3.5" />}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Step4Review({
+  state, classes, totalMonthly,
+}: { state: WizardState; classes: ClassRow[]; totalMonthly: number }) {
+  const classMap = new Map(classes.map((c) => [c.id, c]));
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-xl">Review &amp; Submit</h2>
+        <p className="text-sm text-muted-foreground">Confirm everything looks right before submitting.</p>
+      </div>
+
+      <section>
+        <h3 className="font-semibold">Parent</h3>
+        <p className="text-sm">{state.parent.first_name} {state.parent.last_name} · {state.parent.email}</p>
+        <p className="text-sm text-muted-foreground">{state.parent.phone} · {state.parent.address}</p>
+        <p className="mt-1 text-sm text-muted-foreground">Emergency: {state.parent.emergency_contact_name} ({state.parent.emergency_contact_phone})</p>
+      </section>
+
+      <section>
+        <h3 className="font-semibold">Students &amp; Classes</h3>
+        <div className="mt-2 space-y-3">
+          {state.students.map((s, i) => (
+            <div key={i} className="rounded-md border p-3">
+              <p className="font-medium">{s.first_name} {s.last_name} <span className="text-xs text-muted-foreground">· DOB {s.date_of_birth}{s.grade ? ` · Grade ${s.grade}` : ""}</span></p>
+              <ul className="mt-1 text-sm">
+                {s.class_ids.map((id) => {
+                  const c = classMap.get(id);
+                  if (!c) return null;
+                  return (
+                    <li key={id} className="flex justify-between">
+                      <span>{c.class_name} — {c.day} {c.time}{c.is_full ? " (waitlist)" : ""}</span>
+                      <span className="text-muted-foreground">{c.monthly_tuition_cents != null ? `$${(c.monthly_tuition_cents/100).toFixed(2)}/mo` : ""}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="rounded-md border bg-muted/30 p-4">
+        <div className="flex justify-between text-sm">
+          <span>Registration fee (one-time)</span>
+          <span>${(REGISTRATION_FEE_CENTS/100).toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Monthly tuition total</span>
+          <span>${(totalMonthly/100).toFixed(2)}/mo</span>
+        </div>
+        <div className="mt-2 flex justify-between border-t pt-2 font-semibold">
+          <span>Total Due Today</span>
+          <span>${(REGISTRATION_FEE_CENTS/100).toFixed(2)} <span className="text-xs font-normal text-muted-foreground">(payment coming soon)</span></span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function Field({ label, required, children, className }: { label: string; required?: boolean; children: React.ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <Label className="text-sm">{label}{required && <span className="text-destructive"> *</span>}</Label>
+      <div className="mt-1">{children}</div>
     </div>
   );
 }
