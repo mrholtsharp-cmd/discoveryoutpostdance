@@ -574,8 +574,8 @@ function Step3Classes({
 }
 
 function Step4Review({
-  state, classes, totalMonthly,
-}: { state: WizardState; classes: ClassRow[]; totalMonthly: number }) {
+  state, classes, totalMonthly, setPaymentPlan,
+}: { state: WizardState; classes: ClassRow[]; totalMonthly: number; setPaymentPlan: (p: PaymentPlan) => void }) {
   const classMap = new Map(classes.map((c) => [c.id, c]));
   return (
     <div className="space-y-6">
@@ -625,7 +625,38 @@ function Step4Review({
         </div>
         <div className="mt-2 flex justify-between border-t pt-2 font-semibold">
           <span>Total Due Today</span>
-          <span>${(REGISTRATION_FEE_CENTS/100).toFixed(2)} <span className="text-xs font-normal text-muted-foreground">(payment coming soon)</span></span>
+          <span>
+            {state.payment_plan === "invoice"
+              ? "$0.00"
+              : `$${((REGISTRATION_FEE_CENTS + totalMonthly)/100).toFixed(2)}`}
+          </span>
+        </div>
+      </section>
+
+      <section>
+        <h3 className="font-semibold">Payment Method</h3>
+        <p className="text-xs text-muted-foreground">Choose how you'd like to pay tuition.</p>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setPaymentPlan("auto_pay")}
+            className={`text-left rounded-md border p-4 transition-colors ${state.payment_plan === "auto_pay" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}
+          >
+            <div className="flex items-center gap-2 font-semibold"><CreditCard className="h-4 w-4" /> Auto-pay by card</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pay registration today and auto-charge monthly tuition. Cards, Apple Pay, Google Pay, Link supported.
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentPlan("invoice")}
+            className={`text-left rounded-md border p-4 transition-colors ${state.payment_plan === "invoice" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}
+          >
+            <div className="flex items-center gap-2 font-semibold"><Mail className="h-4 w-4" /> Request monthly invoice</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The studio will email you an invoice each month. No card on file today.
+            </p>
+          </button>
         </div>
       </section>
     </div>
