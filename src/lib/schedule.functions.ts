@@ -20,6 +20,10 @@ const entrySchema = z.object({
   time: z.string().min(1).max(40),
   sort_order: z.number().int().min(0).max(100),
   capacity: z.number().int().min(0).max(1000).nullable().optional(),
+  description: z.string().max(500).nullable().optional(),
+  age_group: z.string().max(60).nullable().optional(),
+  instructor: z.string().max(120).nullable().optional(),
+  monthly_tuition_cents: z.number().int().min(0).max(1_000_000).nullable().optional(),
 });
 
 async function ensureAdmin(context: { supabase: any; userId: string }) {
