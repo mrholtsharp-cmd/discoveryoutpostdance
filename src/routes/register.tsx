@@ -478,7 +478,9 @@ function Step3Classes({
                         <p className="mt-1 text-sm font-medium">${(c.monthly_tuition_cents / 100).toFixed(2)}/mo</p>
                       )}
                     </div>
-                    <Checkbox checked={selected} onCheckedChange={() => toggle(i, c.id)} aria-label={`Select ${c.class_name}`} />
+                    <div aria-hidden className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"}`}>
+                      {selected && <Check className="h-3.5 w-3.5" />}
+                    </div>
                   </div>
                 </button>
               );
