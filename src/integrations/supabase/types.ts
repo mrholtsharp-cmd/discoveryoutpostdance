@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance: {
+        Row: {
+          class_date: string
+          created_at: string
+          enrollment_id: string
+          id: string
+          notes: string | null
+          recorded_by: string | null
+          status: Database["public"]["Enums"]["attendance_status"]
+          updated_at: string
+        }
+        Insert: {
+          class_date: string
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          notes?: string | null
+          recorded_by?: string | null
+          status: Database["public"]["Enums"]["attendance_status"]
+          updated_at?: string
+        }
+        Update: {
+          class_date?: string
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          notes?: string | null
+          recorded_by?: string | null
+          status?: Database["public"]["Enums"]["attendance_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "enrollments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       class_schedule: {
         Row: {
           age_group: string | null
@@ -189,6 +230,7 @@ export type Database = {
       }
       enrollments: {
         Row: {
+          admin_notes: string | null
           class_id: string
           created_at: string
           enrolled_at: string
@@ -198,6 +240,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
           class_id: string
           created_at?: string
           enrolled_at?: string
@@ -207,6 +250,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
           class_id?: string
           created_at?: string
           enrolled_at?: string
@@ -280,6 +324,7 @@ export type Database = {
       parents: {
         Row: {
           address: string | null
+          admin_notes: string | null
           auth_user_id: string
           created_at: string
           email: string
@@ -291,6 +336,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          admin_notes?: string | null
           auth_user_id: string
           created_at?: string
           email: string
@@ -302,6 +348,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          admin_notes?: string | null
           auth_user_id?: string
           created_at?: string
           email?: string
@@ -566,6 +613,7 @@ export type Database = {
       }
       students: {
         Row: {
+          admin_notes: string | null
           allergies: string | null
           created_at: string
           date_of_birth: string
@@ -579,6 +627,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
           allergies?: string | null
           created_at?: string
           date_of_birth: string
@@ -592,6 +641,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
           allergies?: string | null
           created_at?: string
           date_of_birth?: string
@@ -839,6 +889,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      attendance_status: "present" | "absent" | "late" | "excused"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -967,6 +1018,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      attendance_status: ["present", "absent", "late", "excused"],
     },
   },
 } as const
