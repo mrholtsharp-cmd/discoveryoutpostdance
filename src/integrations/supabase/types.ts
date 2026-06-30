@@ -26,6 +26,8 @@ export type Database = {
           instructor: string | null
           monthly_tuition_cents: number | null
           sort_order: number
+          stripe_monthly_lookup_key: string | null
+          stripe_semester_lookup_key: string | null
           time: string
         }
         Insert: {
@@ -39,6 +41,8 @@ export type Database = {
           instructor?: string | null
           monthly_tuition_cents?: number | null
           sort_order?: number
+          stripe_monthly_lookup_key?: string | null
+          stripe_semester_lookup_key?: string | null
           time: string
         }
         Update: {
@@ -52,6 +56,8 @@ export type Database = {
           instructor?: string | null
           monthly_tuition_cents?: number | null
           sort_order?: number
+          stripe_monthly_lookup_key?: string | null
+          stripe_semester_lookup_key?: string | null
           time?: string
         }
         Relationships: []

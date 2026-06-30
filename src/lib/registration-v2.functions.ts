@@ -38,7 +38,7 @@ export const listClassesWithAvailability = createServerFn({ method: "GET" })
     );
     const { data: classes, error } = await supa
       .from("class_schedule")
-      .select("id, day, class_name, time, sort_order, capacity, description, age_group, instructor, monthly_tuition_cents")
+      .select("id, day, class_name, time, sort_order, capacity, description, age_group, instructor, monthly_tuition_cents, stripe_monthly_lookup_key, stripe_semester_lookup_key")
       .order("day").order("sort_order");
     if (error) throw new Error(error.message);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
