@@ -23,6 +23,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as AuthenticatedAdminWaitlistsRouteImport } from './routes/_authenticated/admin.waitlists'
+import { Route as AuthenticatedAdminTuitionRouteImport } from './routes/_authenticated/admin.tuition'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
 import { Route as AuthenticatedAdminStudentsRouteImport } from './routes/_authenticated/admin.students'
 import { Route as AuthenticatedAdminParentsRouteImport } from './routes/_authenticated/admin.parents'
@@ -102,6 +103,12 @@ const AuthenticatedAdminWaitlistsRoute =
     path: '/waitlists',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminTuitionRoute =
+  AuthenticatedAdminTuitionRouteImport.update({
+    id: '/tuition',
+    path: '/tuition',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminTeachersRoute =
   AuthenticatedAdminTeachersRouteImport.update({
     id: '/teachers',
@@ -167,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -189,6 +197,7 @@ export interface FileRoutesByTo {
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -214,6 +223,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/_authenticated/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRoute
+  '/_authenticated/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/_authenticated/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/admin/parents'
     | '/admin/students'
     | '/admin/teachers'
+    | '/admin/tuition'
     | '/admin/waitlists'
     | '/lovable/email/suppression'
     | '/admin/'
@@ -261,6 +272,7 @@ export interface FileRouteTypes {
     | '/admin/parents'
     | '/admin/students'
     | '/admin/teachers'
+    | '/admin/tuition'
     | '/admin/waitlists'
     | '/lovable/email/suppression'
     | '/admin'
@@ -285,6 +297,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/parents'
     | '/_authenticated/admin/students'
     | '/_authenticated/admin/teachers'
+    | '/_authenticated/admin/tuition'
     | '/_authenticated/admin/waitlists'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
@@ -410,6 +423,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminWaitlistsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/tuition': {
+      id: '/_authenticated/admin/tuition'
+      path: '/tuition'
+      fullPath: '/admin/tuition'
+      preLoaderRoute: typeof AuthenticatedAdminTuitionRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/teachers': {
       id: '/_authenticated/admin/teachers'
       path: '/teachers'
@@ -475,6 +495,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminParentsRoute: typeof AuthenticatedAdminParentsRoute
   AuthenticatedAdminStudentsRoute: typeof AuthenticatedAdminStudentsRoute
   AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRoute
+  AuthenticatedAdminTuitionRoute: typeof AuthenticatedAdminTuitionRoute
   AuthenticatedAdminWaitlistsRoute: typeof AuthenticatedAdminWaitlistsRoute
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
 }
@@ -485,6 +506,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
   AuthenticatedAdminStudentsRoute: AuthenticatedAdminStudentsRoute,
   AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
+  AuthenticatedAdminTuitionRoute: AuthenticatedAdminTuitionRoute,
   AuthenticatedAdminWaitlistsRoute: AuthenticatedAdminWaitlistsRoute,
   AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
 }
