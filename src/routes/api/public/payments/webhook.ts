@@ -42,6 +42,22 @@ async function upsertSubscription(subscription: any, env: StripeEnv) {
     console.error("No userId in subscription metadata", subscription.id);
     return;
   }
+  // If the checkout requested a scheduled cancel (passed via metadata to
+  // avoid the unsupported subscription_data.cancel_at param), apply it now.
+  const cancelAtTs = Number(subscription.metadata?.cancel_at_ts);
+  if (
+    Number.isFinite(cancelAtTs)
+    && cancelAtTs > 0
+    && !subscription.cancel_at
+    && subscription.status !== "canceled"
+  ) {
+    try {
+      const stripe = createStripeClient(env);
+      await stripe.subscriptions.update(subscription.id, { cancel_at: cancelAtTs });
+    } catch (e) {
+      console.error("[webhook] failed to schedule cancel_at:", (e as Error).message);
+    }
+  }
   const item = subscription.items?.data?.[0];
   const priceId = item?.price?.lookup_key
     || item?.price?.metadata?.lovable_external_id
