@@ -114,8 +114,10 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ...(userId && { metadata: { userId } }),
         ...(isRecurring && {
           subscription_data: {
-            ...(userId && { metadata: { userId } }),
-            ...(subscriptionCancelAt && { cancel_at: subscriptionCancelAt }),
+            metadata: {
+              ...(userId && { userId }),
+              ...(subscriptionCancelAt && { cancel_at_ts: String(subscriptionCancelAt) }),
+            },
           },
         }),
       });
