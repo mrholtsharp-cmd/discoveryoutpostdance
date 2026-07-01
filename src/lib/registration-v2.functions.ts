@@ -108,6 +108,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
 
     // Insert students + enrollments via SECURITY DEFINER fn (which also handles waitlist)
     const results: Array<{ student_id: string; class_id: string; placement: string; wait_position: number }> = [];
+    const registrationIds: string[] = [];
     for (const s of data.students) {
       const { data: stu, error: sErr } = await supabaseAdmin
         .from("students")
@@ -125,12 +126,19 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
         .single();
       if (sErr || !stu) throw new Error(sErr?.message ?? "Could not create student");
 
+      // Compute age (int, required by registrations table)
+      const dob = new Date(s.date_of_birth + "T00:00:00");
+      let age = new Date().getFullYear() - dob.getFullYear();
+      const m = new Date().getMonth() - dob.getMonth();
+      if (m < 0 || (m === 0 && new Date().getDate() < dob.getDate())) age--;
+      if (!Number.isFinite(age) || age < 0) age = 0;
+
       for (const classId of s.class_ids) {
         // Manually check capacity + insert, since enroll_or_waitlist uses auth.uid()
         // and we're operating via service role here. Atomicity via row-lock on class.
         const { data: cls } = await supabaseAdmin
           .from("class_schedule")
-          .select("capacity")
+          .select("capacity, class_name")
           .eq("id", classId)
           .single();
         const { count } = await supabaseAdmin
@@ -140,9 +148,11 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
           .eq("status", "active");
         const enrolledCount = count ?? 0;
         const cap = cls?.capacity ?? null;
+        let placement: "enrolled" | "waitlisted";
+        let waitPosition = 0;
         if (cap == null || enrolledCount < cap) {
           await supabaseAdmin.from("enrollments").insert({ student_id: stu.id, class_id: classId });
-          results.push({ student_id: stu.id, class_id: classId, placement: "enrolled", wait_position: 0 });
+          placement = "enrolled";
         } else {
           const { data: maxRow } = await supabaseAdmin
             .from("waitlist_entries")
@@ -153,10 +163,39 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
             .maybeSingle();
           const pos = (maxRow?.wait_position ?? 0) + 1;
           await supabaseAdmin.from("waitlist_entries").insert({ student_id: stu.id, class_id: classId, wait_position: pos });
-          results.push({ student_id: stu.id, class_id: classId, placement: "waitlisted", wait_position: pos });
+          placement = "waitlisted";
+          waitPosition = pos;
         }
+        results.push({ student_id: stu.id, class_id: classId, placement, wait_position: waitPosition });
+
+        // Mirror into the legacy `registrations` table so the admin dashboard,
+        // Stripe webhook, and refund flow all see this signup.
+        const { data: regRow } = await supabaseAdmin
+          .from("registrations")
+          .insert({
+            student_name: `${s.first_name} ${s.last_name}`.trim(),
+            parent_name: `${data.parent.first_name} ${data.parent.last_name}`.trim(),
+            email: data.parent.email.toLowerCase(),
+            phone: data.parent.phone,
+            age,
+            desired_class: cls?.class_name ?? "",
+            experience_level: "Beginner",
+            emergency_contact: `${data.emergency_contact.name} — ${data.emergency_contact.phone}`,
+            is_trial: false,
+            date_of_birth: s.date_of_birth,
+            media_release: true,
+            parent_agreement: true,
+            payment_status: "pending",
+            approval_status: placement === "enrolled" ? "approved" : "waitlisted",
+            selected_class_id: classId,
+            program: cls?.class_name ?? null,
+            medical_notes: s.medical_notes ?? null,
+          })
+          .select("id")
+          .single();
+        if (regRow) registrationIds.push(regRow.id);
       }
     }
 
-    return { ok: true, parent_id: parentId, placements: results };
+    return { ok: true, parent_id: parentId, placements: results, registration_ids: registrationIds };
   });

@@ -107,9 +107,8 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
         ui_mode: "hosted" as any,
         success_url: data.returnUrl,
         cancel_url: data.returnUrl.split("?")[0].replace(/\/checkout\/return$/, "/tuition"),
-        payment_method_types: isRecurring
-          ? ["card", "link"]
-          : ["card", "cashapp", "paypal"],
+        // Card covers Apple Pay + Google Pay automatically on eligible domains.
+        payment_method_types: ["card", "link"],
         ...(customerId && { customer: customerId }),
         ...(!isRecurring && { payment_intent_data: { description: productDescription } }),
         ...(userId && { metadata: { userId } }),
@@ -410,9 +409,7 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
         ui_mode: "hosted" as any,
         success_url: data.returnUrl,
         cancel_url: data.returnUrl.split("?")[0].replace(/\/checkout\/return$/, "/tuition"),
-        payment_method_types: isSubscription
-          ? ["card", "link"]
-          : ["card", "cashapp", "paypal"],
+        payment_method_types: ["card", "link"],
         ...(customerId && { customer: customerId }),
         metadata: {
           ...(data.userId && { userId: data.userId }),
