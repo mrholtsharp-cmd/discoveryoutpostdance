@@ -53,7 +53,7 @@ export const getMyPortalSnapshot = createServerFn({ method: "GET" })
       supabase
         .from("invoice_requests")
         .select("*")
-        .or(`parent_id.eq.${parent.id},parent_id.eq.${userId}`)
+        .eq("parent_id", parent.id)
         .order("created_at", { ascending: false }),
     ]);
 
