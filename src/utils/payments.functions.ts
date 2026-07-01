@@ -1,12 +1,33 @@
+// Stripe payments have been removed from this project. This module now only
+// hosts small parent-portal helpers. Card checkout and refund flows are gone;
+// registrations always finish via an invoice request (see
+// `createInvoiceRequest` in `@/lib/invoice-requests.functions`).
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { type StripeEnv, createStripeClient, getStripeErrorMessage } from "@/lib/stripe.server";
-import { getSeasonInfo, proratedSemesterCents, SEASON_TOTAL_MONTHS } from "@/lib/season";
 
-type CheckoutSessionResult = { url: string } | { error: string };
-type CancelResult = { ok: true } | { error: string };
-type CartItemInput = { priceId: string; quantity: number };
-type PaymentPlan = "auto_pay" | "semester" | "invoice";
+// Re-export the invoice request server fn so existing imports keep working.
+export { createInvoiceRequest } from "@/lib/invoice-requests.functions";
+
+// Parent portal: update phone / display name on the auth user metadata.
+export const updateMyContactInfo = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: { phone?: string; parentName?: string }) => {
+    if (data.phone && (data.phone.length < 5 || data.phone.length > 30)) {
+      throw new Error("Phone must be 5–30 characters");
+    }
+    if (data.parentName && (data.parentName.length < 1 || data.parentName.length > 100)) {
+      throw new Error("Name must be 1–100 characters");
+    }
+    return data;
+  })
+  .handler(async ({ data, context }): Promise<{ ok: true } | { error: string }> => {
+    const meta: Record<string, string> = {};
+    if (data.phone !== undefined) meta.phone = data.phone;
+    if (data.parentName !== undefined) meta.parent_name = data.parentName;
+    const { error } = await context.supabase.auth.updateUser({ data: meta });
+    if (error) return { error: error.message };
+    return { ok: true };
+  });
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
