@@ -9,25 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TuitionRouteImport } from './routes/tuition'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AttireGuideRouteImport } from './routes/attire-guide'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EmailUnsubscribeRouteImport } from './routes/email/unsubscribe'
-import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
-import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
-import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
 import { Route as AuthenticatedAdminWaitlistsRouteImport } from './routes/_authenticated/admin.waitlists'
-import { Route as AuthenticatedAdminTuitionRouteImport } from './routes/_authenticated/admin.tuition'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
 import { Route as AuthenticatedAdminStudentsRouteImport } from './routes/_authenticated/admin.students'
-import { Route as AuthenticatedAdminRegistrationsRouteImport } from './routes/_authenticated/admin.registrations'
 import { Route as AuthenticatedAdminParentsRouteImport } from './routes/_authenticated/admin.parents'
 import { Route as AuthenticatedAdminClassesRouteImport } from './routes/_authenticated/admin.classes'
 import { Route as AuthenticatedAdminAttendanceRouteImport } from './routes/_authenticated/admin.attendance'
@@ -35,11 +28,6 @@ import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lova
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 
-const TuitionRoute = TuitionRouteImport.update({
-  id: '/tuition',
-  path: '/tuition',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -53,11 +41,6 @@ const ScheduleRoute = ScheduleRouteImport.update({
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -84,21 +67,6 @@ const EmailUnsubscribeRoute = EmailUnsubscribeRouteImport.update({
   path: '/email/unsubscribe',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedAccountRoute = AuthenticatedAccountRouteImport.update({
-  id: '/account',
-  path: '/account',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => AuthenticatedAdminRoute,
-} as any)
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
@@ -106,51 +74,39 @@ const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
 } as any)
 const AuthenticatedAdminWaitlistsRoute =
   AuthenticatedAdminWaitlistsRouteImport.update({
-    id: '/waitlists',
-    path: '/waitlists',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminTuitionRoute =
-  AuthenticatedAdminTuitionRouteImport.update({
-    id: '/tuition',
-    path: '/tuition',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/waitlists',
+    path: '/admin/waitlists',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminTeachersRoute =
   AuthenticatedAdminTeachersRouteImport.update({
-    id: '/teachers',
-    path: '/teachers',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/teachers',
+    path: '/admin/teachers',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminStudentsRoute =
   AuthenticatedAdminStudentsRouteImport.update({
-    id: '/students',
-    path: '/students',
-    getParentRoute: () => AuthenticatedAdminRoute,
-  } as any)
-const AuthenticatedAdminRegistrationsRoute =
-  AuthenticatedAdminRegistrationsRouteImport.update({
-    id: '/registrations',
-    path: '/registrations',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/students',
+    path: '/admin/students',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminParentsRoute =
   AuthenticatedAdminParentsRouteImport.update({
-    id: '/parents',
-    path: '/parents',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/parents',
+    path: '/admin/parents',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminClassesRoute =
   AuthenticatedAdminClassesRouteImport.update({
-    id: '/classes',
-    path: '/classes',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/classes',
+    path: '/admin/classes',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedAdminAttendanceRoute =
   AuthenticatedAdminAttendanceRouteImport.update({
-    id: '/attendance',
-    path: '/attendance',
-    getParentRoute: () => AuthenticatedAdminRoute,
+    id: '/admin/attendance',
+    path: '/admin/attendance',
+    getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const LovableEmailTransactionalSendRoute =
   LovableEmailTransactionalSendRouteImport.update({
@@ -175,24 +131,17 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/attire-guide': typeof AttireGuideRoute
   '/auth': typeof AuthRoute
-  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/tuition': typeof TuitionRoute
-  '/account': typeof AuthenticatedAccountRoute
-  '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
-  '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
-  '/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
-  '/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
@@ -201,23 +150,17 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/attire-guide': typeof AttireGuideRoute
   '/auth': typeof AuthRoute
-  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/tuition': typeof TuitionRoute
-  '/account': typeof AuthenticatedAccountRoute
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
-  '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
-  '/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
-  '/admin': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
@@ -228,24 +171,17 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/attire-guide': typeof AttireGuideRoute
   '/auth': typeof AuthRoute
-  '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
-  '/tuition': typeof TuitionRoute
-  '/_authenticated/account': typeof AuthenticatedAccountRoute
-  '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/_authenticated/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/_authenticated/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/_authenticated/admin/parents': typeof AuthenticatedAdminParentsRoute
-  '/_authenticated/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/_authenticated/admin/students': typeof AuthenticatedAdminStudentsRoute
   '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRoute
-  '/_authenticated/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/_authenticated/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
-  '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
   '/lovable/email/transactional/send': typeof LovableEmailTransactionalSendRoute
@@ -256,24 +192,17 @@ export interface FileRouteTypes {
     | '/'
     | '/attire-guide'
     | '/auth'
-    | '/register'
     | '/reset-password'
     | '/schedule'
     | '/sitemap.xml'
-    | '/tuition'
-    | '/account'
-    | '/admin'
     | '/email/unsubscribe'
     | '/admin/attendance'
     | '/admin/classes'
     | '/admin/parents'
-    | '/admin/registrations'
     | '/admin/students'
     | '/admin/teachers'
-    | '/admin/tuition'
     | '/admin/waitlists'
     | '/lovable/email/suppression'
-    | '/admin/'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
@@ -282,23 +211,17 @@ export interface FileRouteTypes {
     | '/'
     | '/attire-guide'
     | '/auth'
-    | '/register'
     | '/reset-password'
     | '/schedule'
     | '/sitemap.xml'
-    | '/tuition'
-    | '/account'
     | '/email/unsubscribe'
     | '/admin/attendance'
     | '/admin/classes'
     | '/admin/parents'
-    | '/admin/registrations'
     | '/admin/students'
     | '/admin/teachers'
-    | '/admin/tuition'
     | '/admin/waitlists'
     | '/lovable/email/suppression'
-    | '/admin'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
@@ -308,24 +231,17 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/attire-guide'
     | '/auth'
-    | '/register'
     | '/reset-password'
     | '/schedule'
     | '/sitemap.xml'
-    | '/tuition'
-    | '/_authenticated/account'
-    | '/_authenticated/admin'
     | '/email/unsubscribe'
     | '/_authenticated/admin/attendance'
     | '/_authenticated/admin/classes'
     | '/_authenticated/admin/parents'
-    | '/_authenticated/admin/registrations'
     | '/_authenticated/admin/students'
     | '/_authenticated/admin/teachers'
-    | '/_authenticated/admin/tuition'
     | '/_authenticated/admin/waitlists'
     | '/lovable/email/suppression'
-    | '/_authenticated/admin/'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
     | '/lovable/email/transactional/send'
@@ -336,11 +252,9 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AttireGuideRoute: typeof AttireGuideRoute
   AuthRoute: typeof AuthRoute
-  RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ScheduleRoute: typeof ScheduleRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
-  TuitionRoute: typeof TuitionRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -350,13 +264,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/tuition': {
-      id: '/tuition'
-      path: '/tuition'
-      fullPath: '/tuition'
-      preLoaderRoute: typeof TuitionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -376,13 +283,6 @@ declare module '@tanstack/react-router' {
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -420,27 +320,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EmailUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/admin': {
-      id: '/_authenticated/admin'
-      path: '/admin'
-      fullPath: '/admin'
-      preLoaderRoute: typeof AuthenticatedAdminRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/account': {
-      id: '/_authenticated/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AuthenticatedAccountRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/admin/': {
-      id: '/_authenticated/admin/'
-      path: '/'
-      fullPath: '/admin/'
-      preLoaderRoute: typeof AuthenticatedAdminIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
     '/lovable/email/suppression': {
       id: '/lovable/email/suppression'
       path: '/lovable/email/suppression'
@@ -450,59 +329,45 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/admin/waitlists': {
       id: '/_authenticated/admin/waitlists'
-      path: '/waitlists'
+      path: '/admin/waitlists'
       fullPath: '/admin/waitlists'
       preLoaderRoute: typeof AuthenticatedAdminWaitlistsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/tuition': {
-      id: '/_authenticated/admin/tuition'
-      path: '/tuition'
-      fullPath: '/admin/tuition'
-      preLoaderRoute: typeof AuthenticatedAdminTuitionRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/teachers': {
       id: '/_authenticated/admin/teachers'
-      path: '/teachers'
+      path: '/admin/teachers'
       fullPath: '/admin/teachers'
       preLoaderRoute: typeof AuthenticatedAdminTeachersRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/students': {
       id: '/_authenticated/admin/students'
-      path: '/students'
+      path: '/admin/students'
       fullPath: '/admin/students'
       preLoaderRoute: typeof AuthenticatedAdminStudentsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
-    }
-    '/_authenticated/admin/registrations': {
-      id: '/_authenticated/admin/registrations'
-      path: '/registrations'
-      fullPath: '/admin/registrations'
-      preLoaderRoute: typeof AuthenticatedAdminRegistrationsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/parents': {
       id: '/_authenticated/admin/parents'
-      path: '/parents'
+      path: '/admin/parents'
       fullPath: '/admin/parents'
       preLoaderRoute: typeof AuthenticatedAdminParentsRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/classes': {
       id: '/_authenticated/admin/classes'
-      path: '/classes'
+      path: '/admin/classes'
       fullPath: '/admin/classes'
       preLoaderRoute: typeof AuthenticatedAdminClassesRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/admin/attendance': {
       id: '/_authenticated/admin/attendance'
-      path: '/attendance'
+      path: '/admin/attendance'
       fullPath: '/admin/attendance'
       preLoaderRoute: typeof AuthenticatedAdminAttendanceRouteImport
-      parentRoute: typeof AuthenticatedAdminRoute
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/lovable/email/transactional/send': {
       id: '/lovable/email/transactional/send'
@@ -528,41 +393,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AuthenticatedAdminRouteChildren {
+interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminAttendanceRoute: typeof AuthenticatedAdminAttendanceRoute
   AuthenticatedAdminClassesRoute: typeof AuthenticatedAdminClassesRoute
   AuthenticatedAdminParentsRoute: typeof AuthenticatedAdminParentsRoute
-  AuthenticatedAdminRegistrationsRoute: typeof AuthenticatedAdminRegistrationsRoute
   AuthenticatedAdminStudentsRoute: typeof AuthenticatedAdminStudentsRoute
   AuthenticatedAdminTeachersRoute: typeof AuthenticatedAdminTeachersRoute
-  AuthenticatedAdminTuitionRoute: typeof AuthenticatedAdminTuitionRoute
   AuthenticatedAdminWaitlistsRoute: typeof AuthenticatedAdminWaitlistsRoute
-  AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
-}
-
-const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
-  AuthenticatedAdminAttendanceRoute: AuthenticatedAdminAttendanceRoute,
-  AuthenticatedAdminClassesRoute: AuthenticatedAdminClassesRoute,
-  AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
-  AuthenticatedAdminRegistrationsRoute: AuthenticatedAdminRegistrationsRoute,
-  AuthenticatedAdminStudentsRoute: AuthenticatedAdminStudentsRoute,
-  AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
-  AuthenticatedAdminTuitionRoute: AuthenticatedAdminTuitionRoute,
-  AuthenticatedAdminWaitlistsRoute: AuthenticatedAdminWaitlistsRoute,
-  AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
-}
-
-const AuthenticatedAdminRouteWithChildren =
-  AuthenticatedAdminRoute._addFileChildren(AuthenticatedAdminRouteChildren)
-
-interface AuthenticatedRouteRouteChildren {
-  AuthenticatedAccountRoute: typeof AuthenticatedAccountRoute
-  AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
-  AuthenticatedAccountRoute: AuthenticatedAccountRoute,
-  AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
+  AuthenticatedAdminAttendanceRoute: AuthenticatedAdminAttendanceRoute,
+  AuthenticatedAdminClassesRoute: AuthenticatedAdminClassesRoute,
+  AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
+  AuthenticatedAdminStudentsRoute: AuthenticatedAdminStudentsRoute,
+  AuthenticatedAdminTeachersRoute: AuthenticatedAdminTeachersRoute,
+  AuthenticatedAdminWaitlistsRoute: AuthenticatedAdminWaitlistsRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
@@ -573,11 +419,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AttireGuideRoute: AttireGuideRoute,
   AuthRoute: AuthRoute,
-  RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ScheduleRoute: ScheduleRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
-  TuitionRoute: TuitionRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
