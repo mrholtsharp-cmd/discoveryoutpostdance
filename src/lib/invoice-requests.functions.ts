@@ -128,7 +128,7 @@ export const updateInvoiceRequestAdmin = createServerFn({ method: "POST" })
       if (data.status === "sent") patch.sent_at = new Date().toISOString();
       if (data.status === "paid") patch.paid_at = new Date().toISOString();
     }
-    const { error } = await supabaseAdmin.from("invoice_requests").update(patch).eq("id", data.id);
+    const { error } = await supabaseAdmin.from("invoice_requests").update(patch as never).eq("id", data.id);
     if (error) return { error: error.message };
     return { ok: true };
   });
@@ -155,7 +155,7 @@ export const updateInvoiceGroupAdmin = createServerFn({ method: "POST" })
     }
     const { error } = await supabaseAdmin
       .from("invoice_requests")
-      .update(patch)
+      .update(patch as never)
       .eq("request_group_id", data.group_id);
     if (error) return { error: error.message };
     return { ok: true };
