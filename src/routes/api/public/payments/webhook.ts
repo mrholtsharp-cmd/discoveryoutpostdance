@@ -165,6 +165,23 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
       .eq("id", reg.id);
   }
 
+  // A single Stripe checkout can cover multiple registration rows (one per
+  // student/class enrollment created in submitFullRegistration). Mark ALL
+  // pending rows for this customer email as paid so the admin dashboard
+  // reflects the true payment state, not just the first row matched above.
+  if (email) {
+    await getSupabase()
+      .from("registrations")
+      .update({
+        payment_status: "paid",
+        paid_at: new Date().toISOString(),
+        payment_failure_flagged: false,
+        stripe_checkout_session_id: session.id,
+      })
+      .ilike("email", email)
+      .in("payment_status", ["pending", "awaiting_card", "past_due"]);
+  }
+
   const recipient = reg?.email ?? email;
   if (recipient) {
     await sendEmail({
