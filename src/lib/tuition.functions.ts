@@ -11,7 +11,46 @@ export const listTuitionItems = createServerFn({ method: "GET" }).handler(async 
     .order("kind", { ascending: true })
     .order("sort_order", { ascending: true });
   if (error) throw new Error(error.message);
-  return data ?? [];
+  const rows = data ?? [];
+
+  // Overlay live Stripe amounts on top of DB rows so the tuition page
+  // always mirrors the current Stripe product/price. If Stripe is
+  // unavailable, fall back to the stored display_price.
+  try {
+    const env: StripeEnv = process.env.STRIPE_LIVE_API_KEY ? "live" : "sandbox";
+    const stripe = createStripeClient(env);
+    const lookupKeys = Array.from(
+      new Set(rows.map((r) => r.stripe_price_id).filter(Boolean)),
+    );
+    if (lookupKeys.length === 0) return rows;
+
+    const priceByKey = new Map<string, { display: string }>();
+    // Stripe caps lookup_keys at 10 per request — chunk.
+    for (let i = 0; i < lookupKeys.length; i += 10) {
+      const chunk = lookupKeys.slice(i, i + 10);
+      const prices = await stripe.prices.list({
+        lookup_keys: chunk,
+        active: true,
+        limit: 100,
+      });
+      for (const p of prices.data) {
+        const key = p.lookup_key;
+        if (!key) continue;
+        const amountStr = formatAmount(p.unit_amount, p.currency);
+        const suffix = p.recurring?.interval === "month" ? "/mo"
+          : p.recurring?.interval === "year" ? "/yr" : "";
+        priceByKey.set(key, { display: `${amountStr}${suffix}` });
+      }
+    }
+
+    return rows.map((r) => {
+      const hit = priceByKey.get(r.stripe_price_id);
+      return hit ? { ...r, display_price: hit.display } : r;
+    });
+  } catch (e) {
+    console.error("listTuitionItems: Stripe overlay failed, using DB values:", e);
+    return rows;
+  }
 });
 
 const itemSchema = z.object({
