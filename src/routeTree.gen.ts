@@ -28,6 +28,7 @@ import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminStudentsRouteImport } from './routes/_authenticated/admin.students'
 import { Route as AuthenticatedAdminRegistrationsRouteImport } from './routes/_authenticated/admin.registrations'
 import { Route as AuthenticatedAdminParentsRouteImport } from './routes/_authenticated/admin.parents'
+import { Route as AuthenticatedAdminInvoiceRequestsRouteImport } from './routes/_authenticated/admin.invoice-requests'
 import { Route as AuthenticatedAdminClassesRouteImport } from './routes/_authenticated/admin.classes'
 import { Route as AuthenticatedAdminAttendanceRouteImport } from './routes/_authenticated/admin.attendance'
 import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lovable/email/transactional/send'
@@ -134,6 +135,12 @@ const AuthenticatedAdminParentsRoute =
     path: '/parents',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminInvoiceRequestsRoute =
+  AuthenticatedAdminInvoiceRequestsRouteImport.update({
+    id: '/invoice-requests',
+    path: '/invoice-requests',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminClassesRoute =
   AuthenticatedAdminClassesRouteImport.update({
     id: '/classes',
@@ -178,6 +185,7 @@ export interface FileRoutesByFullPath {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
+  '/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
@@ -202,6 +210,7 @@ export interface FileRoutesByTo {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
+  '/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
@@ -229,6 +238,7 @@ export interface FileRoutesById {
   '/email/unsubscribe': typeof EmailUnsubscribeRoute
   '/_authenticated/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/_authenticated/admin/classes': typeof AuthenticatedAdminClassesRoute
+  '/_authenticated/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/_authenticated/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/_authenticated/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/_authenticated/admin/students': typeof AuthenticatedAdminStudentsRoute
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/admin/attendance'
     | '/admin/classes'
+    | '/admin/invoice-requests'
     | '/admin/parents'
     | '/admin/registrations'
     | '/admin/students'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/admin/attendance'
     | '/admin/classes'
+    | '/admin/invoice-requests'
     | '/admin/parents'
     | '/admin/registrations'
     | '/admin/students'
@@ -306,6 +318,7 @@ export interface FileRouteTypes {
     | '/email/unsubscribe'
     | '/_authenticated/admin/attendance'
     | '/_authenticated/admin/classes'
+    | '/_authenticated/admin/invoice-requests'
     | '/_authenticated/admin/parents'
     | '/_authenticated/admin/registrations'
     | '/_authenticated/admin/students'
@@ -471,6 +484,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminParentsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/invoice-requests': {
+      id: '/_authenticated/admin/invoice-requests'
+      path: '/invoice-requests'
+      fullPath: '/admin/invoice-requests'
+      preLoaderRoute: typeof AuthenticatedAdminInvoiceRequestsRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/classes': {
       id: '/_authenticated/admin/classes'
       path: '/classes'
@@ -512,6 +532,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAttendanceRoute: typeof AuthenticatedAdminAttendanceRoute
   AuthenticatedAdminClassesRoute: typeof AuthenticatedAdminClassesRoute
+  AuthenticatedAdminInvoiceRequestsRoute: typeof AuthenticatedAdminInvoiceRequestsRoute
   AuthenticatedAdminParentsRoute: typeof AuthenticatedAdminParentsRoute
   AuthenticatedAdminRegistrationsRoute: typeof AuthenticatedAdminRegistrationsRoute
   AuthenticatedAdminStudentsRoute: typeof AuthenticatedAdminStudentsRoute
@@ -524,6 +545,8 @@ interface AuthenticatedAdminRouteChildren {
 const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAttendanceRoute: AuthenticatedAdminAttendanceRoute,
   AuthenticatedAdminClassesRoute: AuthenticatedAdminClassesRoute,
+  AuthenticatedAdminInvoiceRequestsRoute:
+    AuthenticatedAdminInvoiceRequestsRoute,
   AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
   AuthenticatedAdminRegistrationsRoute: AuthenticatedAdminRegistrationsRoute,
   AuthenticatedAdminStudentsRoute: AuthenticatedAdminStudentsRoute,
