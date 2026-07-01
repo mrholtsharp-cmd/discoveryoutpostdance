@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
+import { queryOptions, useSuspenseQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { zodValidator, fallback } from "@tanstack/zod-adapter";
 import { z } from "zod";
@@ -9,39 +9,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { searchRegistrations, exportRegistrations } from "@/lib/registrations.functions";
 import { updateRegistrationApproval, updateRegistration } from "@/lib/admin-dashboard.functions";
-import { adminRefundRegistration } from "@/utils/payments.functions";
-import { getStripeEnvironment } from "@/lib/stripe";
-import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp, Download, RotateCcw } from "lucide-react";
+import { ChevronLeft, ChevronRight, X, ArrowLeft, ChevronDown, ChevronUp, Download } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
-import { useMutation } from "@tanstack/react-query";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-
-function paymentBadge(r: { payment_status?: string | null; payment_failure_flagged?: boolean | null }) {
-  const s = r.payment_status ?? "pending";
-  if (r.payment_failure_flagged) return { label: "Failed", className: "bg-red-100 text-red-800 border-red-200" };
-  const map: Record<string, { label: string; className: string }> = {
-    paid: { label: "Paid", className: "bg-green-100 text-green-800 border-green-200" },
-    pending: { label: "Pending", className: "bg-amber-100 text-amber-900 border-amber-200" },
-    awaiting_card: { label: "Awaiting card", className: "bg-amber-100 text-amber-900 border-amber-200" },
-    past_due: { label: "Past due", className: "bg-red-100 text-red-800 border-red-200" },
-    refunded: { label: "Refunded", className: "bg-zinc-200 text-zinc-700 border-zinc-300" },
-    partially_refunded: { label: "Partial refund", className: "bg-zinc-200 text-zinc-700 border-zinc-300" },
-  };
-  return map[s] ?? { label: s, className: "bg-zinc-100 text-zinc-700 border-zinc-200" };
-}
 
 function approvalBadge(s: string | null | undefined) {
   const v = s ?? "pending";
@@ -138,11 +116,9 @@ function RegistrationsAdminPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const fn = useServerFn(searchRegistrations);
   const exportFn = useServerFn(exportRegistrations);
-  const refundFn = useServerFn(adminRefundRegistration);
   const approveFn = useServerFn(updateRegistrationApproval);
   const updateFn = useServerFn(updateRegistration);
   const qc = useQueryClient();
-  const [refundingId, setRefundingId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
 
@@ -175,7 +151,6 @@ function RegistrationsAdminPage() {
   });
   const { data } = useSuspenseQuery(opts);
 
-  // Debounced search input
   const [qLocal, setQLocal] = useState(search.q);
   useEffect(() => setQLocal(search.q), [search.q]);
   useEffect(() => {
@@ -361,7 +336,6 @@ function RegistrationsAdminPage() {
                   <th className="py-2 pr-4">Age</th>
                   <th className="py-2 pr-4">Trial</th>
                   <th className="py-2 pr-4">Status</th>
-                  <th className="py-2 pr-4">Payment</th>
                 </tr>
               </thead>
               <tbody>
@@ -400,21 +374,11 @@ function RegistrationsAdminPage() {
                             );
                           })()}
                         </td>
-                        <td className="py-2 pr-4">
-                          {(() => {
-                            const b = paymentBadge(r as any);
-                            return (
-                              <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${b.className}`}>
-                                {b.label}
-                              </span>
-                            );
-                          })()}
-                        </td>
                       </tr>
                       {isOpen && (
                         <tr className="bg-muted/30">
                           <td></td>
-                          <td colSpan={10} className="py-3 pr-4">
+                          <td colSpan={9} className="py-3 pr-4">
                             <div className="grid sm:grid-cols-2 gap-4 text-sm">
                               <div>
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Emergency contact</div>
@@ -430,20 +394,7 @@ function RegistrationsAdminPage() {
                                   <div className="whitespace-pre-wrap">{(r as any).admin_notes}</div>
                                 </div>
                               )}
-                              <div>
-                                <div className="text-xs uppercase tracking-wide text-muted-foreground">Amount paid</div>
-                                <div>
-                                  {(r as any).amount_paid_cents
-                                    ? `$${((r as any).amount_paid_cents / 100).toFixed(2)}`
-                                    : "—"}
-                                  {(r as any).refunded_amount_cents ? (
-                                    <span className="text-muted-foreground">
-                                      {" "}· refunded ${((r as any).refunded_amount_cents / 100).toFixed(2)}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-                              <div>
+                              <div className="sm:col-span-2">
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Actions</div>
                                 <div className="mt-2 flex flex-wrap gap-2">
                                   <Button size="sm" variant="outline"
@@ -459,62 +410,10 @@ function RegistrationsAdminPage() {
                                     onClick={() => approveM.mutate({ id: r.id, status: "declined" })}
                                   >Decline</Button>
                                   <Button size="sm" variant="outline" onClick={() => setEditing(r)}>Edit student</Button>
-                                </div>
-                                {((r as any).stripe_charge_id || (r as any).stripe_payment_intent_id) ? (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="mt-1"
-                                    disabled={refundingId === r.id || (r as any).payment_status === "refunded"}
-                                    onClick={async () => {
-                                      const paid = (r as any).amount_paid_cents ?? 0;
-                                      const already = (r as any).refunded_amount_cents ?? 0;
-                                      const maxRefund = Math.max(0, paid - already);
-                                      const input = window.prompt(
-                                        `Refund amount in dollars (blank = full refund of $${(maxRefund / 100).toFixed(2)})`,
-                                        "",
-                                      );
-                                      if (input === null) return;
-                                      let amountCents: number | undefined;
-                                      if (input.trim() !== "") {
-                                        const n = Number(input);
-                                        if (!Number.isFinite(n) || n <= 0) {
-                                          toast.error("Invalid refund amount");
-                                          return;
-                                        }
-                                        amountCents = Math.round(n * 100);
-                                      }
-                                      if (!window.confirm(
-                                        amountCents
-                                          ? `Refund $${(amountCents / 100).toFixed(2)} to this parent? Stripe will email a refund notice.`
-                                          : `Issue a FULL refund? Stripe will email a refund notice to the parent.`,
-                                      )) return;
-                                      setRefundingId(r.id);
-                                      try {
-                                        const res = await refundFn({
-                                          data: {
-                                            registrationId: r.id,
-                                            environment: getStripeEnvironment(),
-                                            reason: "requested_by_customer",
-                                            ...(amountCents !== undefined && { amountCents }),
-                                          },
-                                        });
-                                        if ("error" in res) throw new Error(res.error);
-                                        toast.success("Refund issued");
-                                        qc.invalidateQueries({ queryKey: ["registrations"] });
-                                      } catch (e) {
-                                        toast.error((e as Error).message);
-                                      } finally {
-                                        setRefundingId(null);
-                                      }
-                                    }}
-                                  >
-                                    <RotateCcw className="h-3 w-3 mr-1" />
-                                    {refundingId === r.id ? "Refunding…" : "Refund"}
+                                  <Button size="sm" variant="outline" asChild>
+                                    <Link to="/admin/invoice-requests">Manage invoices</Link>
                                   </Button>
-                                ) : (
-                                  <div className="text-xs text-muted-foreground">No card payment on file</div>
-                                )}
+                                </div>
                               </div>
                             </div>
                           </td>

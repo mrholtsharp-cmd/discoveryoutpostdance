@@ -10,17 +10,9 @@ import { Switch } from "@/components/ui/switch";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  listTuitionItems, upsertTuitionItem, deleteTuitionItem,
-  listStripePrices, importStripePrices,
-} from "@/lib/tuition.functions";
-import { getStripeEnvironment } from "@/lib/stripe";
+import { listTuitionItems, upsertTuitionItem, deleteTuitionItem } from "@/lib/tuition.functions";
 import { toast } from "sonner";
-import { Trash2, Pencil, Save, X, Plus, Download } from "lucide-react";
+import { Trash2, Pencil, Save, X, Plus } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/tuition")({
   head: () => ({ meta: [{ title: "Admin · Tuition — Discovery Outpost" }] }),
@@ -55,59 +47,9 @@ function AdminTuitionPage() {
   const list = useServerFn(listTuitionItems);
   const upsert = useServerFn(upsertTuitionItem);
   const del = useServerFn(deleteTuitionItem);
-  const fetchStripe = useServerFn(listStripePrices);
-  const importStripe = useServerFn(importStripePrices);
 
   const items = useQuery({ queryKey: ["tuition-items-admin"], queryFn: () => list() });
   const [editing, setEditing] = useState<Draft | null>(null);
-  const [syncOpen, setSyncOpen] = useState(false);
-  const [stripePrices, setStripePrices] = useState<Array<{
-    stripe_price_id: string; product_name: string; display_price: string;
-    description: string;
-    suggested_kind: "class_monthly" | "class_semester" | "one_time";
-  }>>([]);
-  const [selected, setSelected] = useState<Record<string, boolean>>({});
-  const [loadingSync, setLoadingSync] = useState(false);
-
-  const existingIds = new Set((items.data ?? []).map((r) => r.stripe_price_id));
-
-  async function openSync() {
-    setSyncOpen(true);
-    setLoadingSync(true);
-    try {
-      const res = await fetchStripe({ data: { environment: getStripeEnvironment() } });
-      if ("error" in res) throw new Error(res.error);
-      setStripePrices(res.prices);
-      setSelected({});
-    } catch (e: any) {
-      toast.error(e.message);
-      setSyncOpen(false);
-    } finally {
-      setLoadingSync(false);
-    }
-  }
-
-  async function doImport() {
-    const picked = stripePrices.filter((p) => selected[p.stripe_price_id]);
-    if (picked.length === 0) return;
-    try {
-      const res = await importStripe({ data: {
-        items: picked.map((p) => ({
-          kind: p.suggested_kind,
-          name: p.product_name,
-          display_price: p.display_price,
-          description: p.description,
-          stripe_price_id: p.stripe_price_id,
-        })),
-      }});
-      toast.success(`Synced ${res.inserted} new${res.updated ? `, updated ${res.updated}` : ""}`);
-      setSyncOpen(false);
-      qc.invalidateQueries({ queryKey: ["tuition-items-admin"] });
-      qc.invalidateQueries({ queryKey: ["tuition-items"] });
-    } catch (e: any) {
-      toast.error(e.message);
-    }
-  }
 
   const saveM = useMutation({
     mutationFn: (d: Draft) => upsert({ data: d }),
@@ -139,25 +81,20 @@ function AdminTuitionPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <span className="text-xs uppercase tracking-[0.25em] text-primary">Studio Admin</span>
-            <h1 className="font-display text-4xl mt-2">Tuition & Fees</h1>
+            <h1 className="font-display text-4xl mt-2">Tuition &amp; Fees</h1>
           </div>
           <Link to="/admin" className="text-sm text-primary hover:underline">← Back to admin</Link>
         </div>
 
         <p className="mt-3 text-sm text-muted-foreground max-w-2xl">
-          Edit the cards that show on the <Link to="/tuition" className="underline">Tuition page</Link>.
-          The <span className="font-medium">Stripe price ID</span> must match a price configured in
-          Stripe (e.g. <code>tuition_ballet_monthly</code>) — changing the display price here does
-          not change what Stripe charges. To change the actual amount, ask the studio admin to
-          create a new Stripe price and paste its ID here.
+          Edit the tuition and fee cards shown on the <Link to="/tuition" className="underline">Tuition page</Link>.
+          These prices are shown to parents when they browse classes; the actual invoice amount is set
+          per-request from the <Link to="/admin/invoice-requests" className="underline">Invoice Requests</Link> screen.
         </p>
 
         <div className="mt-6">
           <Button onClick={() => setEditing({ ...empty })} className="rounded-full">
             <Plus className="h-4 w-4" /> Add item
-          </Button>
-          <Button onClick={openSync} variant="outline" className="rounded-full ml-2">
-            <Download className="h-4 w-4" /> Sync from Stripe
           </Button>
         </div>
 
@@ -179,7 +116,7 @@ function AdminTuitionPage() {
               <label className="text-sm">Display price
                 <Input className="mt-1" value={editing.display_price} onChange={(e) => setEditing((d) => d && { ...d, display_price: e.target.value })} placeholder="$80/mo" />
               </label>
-              <label className="text-sm">Stripe price ID
+              <label className="text-sm">Reference code
                 <Input className="mt-1" value={editing.stripe_price_id} onChange={(e) => setEditing((d) => d && { ...d, stripe_price_id: e.target.value })} placeholder="tuition_ballet_monthly" />
               </label>
               <label className="text-sm sm:col-span-2">Description
@@ -243,49 +180,6 @@ function AdminTuitionPage() {
             </div>
           </Card>
         ))}
-
-        <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Sync from Stripe</DialogTitle>
-              <DialogDescription>
-                Choose active Stripe products to add or update on the tuition page.
-              </DialogDescription>
-            </DialogHeader>
-            {loadingSync ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">Loading prices…</p>
-            ) : stripePrices.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-8 text-center">No active prices found in Stripe.</p>
-            ) : (
-              <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
-                {stripePrices.map((p) => {
-                  const already = existingIds.has(p.stripe_price_id);
-                  return (
-                    <label key={p.stripe_price_id} className="flex cursor-pointer items-center gap-3 py-2">
-                      <Checkbox
-                        checked={!!selected[p.stripe_price_id]}
-                        onCheckedChange={(v) => setSelected((s) => ({ ...s, [p.stripe_price_id]: !!v }))}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">{p.product_name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {p.display_price} · <code>{p.stripe_price_id}</code>
-                          {already && " · will update existing card"}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-            <DialogFooter>
-              <Button variant="ghost" onClick={() => setSyncOpen(false)}>Cancel</Button>
-              <Button onClick={doImport} disabled={Object.values(selected).filter(Boolean).length === 0}>
-                Import selected
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </section>
     </Layout>
   );

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,14 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { getStripeEnvironment } from "@/lib/stripe";
 import { toast } from "sonner";
-import {
-  createPortalSession,
-  listMyPayments,
-  createInvoiceRequest,
-  type PaymentHistoryItem,
-} from "@/utils/payments.functions";
+import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import {
   getMyPortalSnapshot,
   updateMyParent,
@@ -45,59 +39,36 @@ function fmtDate(d: string | null | undefined) {
 type Snapshot = Awaited<ReturnType<typeof getMyPortalSnapshot>>;
 type ClassRow = Awaited<ReturnType<typeof listClassesWithAvailability>>[number];
 
+const STATUS_LABEL: Record<string, string> = {
+  pending: "Pending",
+  sent: "Invoice sent",
+  paid: "Paid",
+  cancelled: "Cancelled",
+};
+
 function AccountPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
-  const [subs, setSubs] = useState<Array<{ id: string; price_id: string; status: string; current_period_end: string | null; cancel_at_period_end: boolean | null; stripe_subscription_id: string; }> | null>(null);
-  const [payments, setPayments] = useState<PaymentHistoryItem[] | null>(null);
-  const [tab, setTab] = useState<"overview" | "students" | "billing" | "history" | "profile">("overview");
-  const [busy, setBusy] = useState(false);
-
-  const env = useMemo(() => {
-    try { return getStripeEnvironment(); } catch { return "sandbox" as const; }
-  }, []);
+  const [tab, setTab] = useState<"overview" | "students" | "invoices" | "profile">("overview");
 
   async function reload() {
-    const [s, c, sb, pay] = await Promise.all([
+    const [s, c] = await Promise.all([
       getMyPortalSnapshot().catch(() => null),
       listClassesWithAvailability().catch(() => [] as ClassRow[]),
-      supabase.from("subscriptions").select("id,stripe_subscription_id,price_id,status,current_period_end,cancel_at_period_end")
-        .eq("environment", env).order("created_at", { ascending: false }),
-      listMyPayments({ data: { environment: env } }).catch(() => ({ items: [] as PaymentHistoryItem[] })),
     ]);
     setSnap(s);
     setClasses(c);
-    setSubs((sb.data ?? []) as any);
-    setPayments("items" in pay ? pay.items : []);
   }
-
   useEffect(() => { void reload(); }, []);
-
-  async function openPortal() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const res = await createPortalSession({ data: { environment: env, returnUrl: window.location.href } });
-      if ("error" in res) throw new Error(res.error);
-      window.open(res.url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not open billing portal");
-    } finally { setBusy(false); }
-  }
 
   if (!snap) {
     return <Layout><section className="mx-auto max-w-3xl px-4 py-16"><p className="text-sm text-muted-foreground">Loading your portal…</p></section></Layout>;
   }
 
-  const activeSubs = (subs ?? []).filter(s => ["active", "trialing", "past_due"].includes(s.status));
-  const nextRenewal = activeSubs
-    .map(s => s.current_period_end ? new Date(s.current_period_end).getTime() : null)
-    .filter((n): n is number => !!n)
-    .sort((a, b) => a - b)[0] ?? null;
-
-  const balanceCents = (snap.invoice_requests ?? [])
+  const invoices = (snap.invoice_requests ?? []) as any[];
+  const balanceCents = invoices
     .filter((r: any) => r.status === "pending" || r.status === "sent")
-    .reduce((sum: number, r: any) => sum + (r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1), 0);
+    .reduce((sum: number, r: any) => sum + ((r.invoiced_amount_cents ?? (r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1))), 0);
 
   const totalEnrollments = snap.students.reduce((n: number, st: any) => n + st.enrollments.filter((e: any) => e.status === "active").length, 0);
   const totalWaitlist = snap.students.reduce((n: number, st: any) => n + st.waitlist.length, 0);
@@ -118,19 +89,16 @@ function AccountPage() {
           </Button>
         </header>
 
-        {/* Stat tiles */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatTile label="Balance due" value={balanceCents > 0 ? fmtMoney(balanceCents) : "$0"} tone={balanceCents > 0 ? "warn" : "ok"} />
-          <StatTile label="Next payment" value={nextRenewal ? fmtDate(new Date(nextRenewal).toISOString())! : "—"} />
-          <StatTile label="Active subs" value={String(activeSubs.length)} />
+          <StatTile label="Est. balance" value={balanceCents > 0 ? fmtMoney(balanceCents) : "$0"} tone={balanceCents > 0 ? "warn" : "ok"} />
           <StatTile label="Enrollments" value={`${totalEnrollments}${totalWaitlist ? ` +${totalWaitlist}wl` : ""}`} />
+          <StatTile label="Invoices pending" value={String(invoices.filter((r: any) => r.status === "pending").length)} />
+          <StatTile label="Invoices paid" value={String(invoices.filter((r: any) => r.status === "paid").length)} tone="ok" />
         </div>
 
-        {/* Mobile-friendly tabs */}
         <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1">
           {([
-            ["overview", "Overview"], ["students", "Students"], ["billing", "Billing"],
-            ["history", "History"], ["profile", "Profile"],
+            ["overview", "Overview"], ["students", "Students"], ["invoices", "Invoices"], ["profile", "Profile"],
           ] as const).map(([k, label]) => (
             <button key={k} onClick={() => setTab(k)}
               className={`shrink-0 rounded-full px-4 py-2 text-sm font-medium transition ${tab === k ? "bg-foreground text-background" : "bg-muted text-foreground hover:bg-muted/70"}`}>
@@ -139,21 +107,10 @@ function AccountPage() {
           ))}
         </nav>
 
-        {tab === "overview" && (
-          <OverviewTab snap={snap} activeSubs={activeSubs} onAction={reload} />
-        )}
-        {tab === "students" && (
-          <StudentsTab snap={snap} classes={classes ?? []} onChange={reload} />
-        )}
-        {tab === "billing" && (
-          <BillingTab subs={subs ?? []} invoices={snap.invoice_requests} onOpenPortal={openPortal} portalBusy={busy} snap={snap} />
-        )}
-        {tab === "history" && (
-          <HistoryTab payments={payments} />
-        )}
-        {tab === "profile" && snap.parent && (
-          <ProfileTab snap={snap} onChange={reload} />
-        )}
+        {tab === "overview" && <OverviewTab snap={snap} />}
+        {tab === "students" && <StudentsTab snap={snap} classes={classes ?? []} onChange={reload} />}
+        {tab === "invoices" && <InvoicesTab snap={snap} onChange={reload} />}
+        {tab === "profile" && snap.parent && <ProfileTab snap={snap} onChange={reload} />}
       </section>
     </Layout>
   );
@@ -168,7 +125,7 @@ function StatTile({ label, value, tone }: { label: string; value: string; tone?:
   );
 }
 
-function OverviewTab({ snap, activeSubs, onAction }: { snap: Snapshot; activeSubs: any[]; onAction: () => void }) {
+function OverviewTab({ snap }: { snap: Snapshot }) {
   const allEnrollments = snap.students.flatMap((s: any) => s.enrollments.filter((e: any) => e.status === "active").map((e: any) => ({ student: s, e })));
   const allWaitlist = snap.students.flatMap((s: any) => s.waitlist.map((w: any) => ({ student: s, w })));
 
@@ -223,28 +180,121 @@ function OverviewTab({ snap, activeSubs, onAction }: { snap: Snapshot; activeSub
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void }) {
+  const [requesting, setRequesting] = useState(false);
+  const invoices = (snap.invoice_requests ?? []) as any[];
+
+  const upcomingTuition = snap.students.flatMap((s: any) =>
+    s.enrollments
+      .filter((e: any) => e.status === "active" && e.class_schedule?.monthly_tuition_cents)
+      .map((e: any) => ({ student: s, e })),
+  );
+  const monthlyTotal = upcomingTuition.reduce((sum: number, x: any) => sum + (x.e.class_schedule.monthly_tuition_cents ?? 0), 0);
+
+  async function requestInvoices() {
+    if (upcomingTuition.length === 0) { toast.error("No enrolled tuition to invoice"); return; }
+    setRequesting(true);
+    try {
+      const r = await createInvoiceRequest({
+        data: {
+          items: upcomingTuition.map((x: any) => ({
+            classLabel: x.e.class_schedule.class_name,
+            monthlyAmountCents: x.e.class_schedule.monthly_tuition_cents,
+            studentName: `${x.student.first_name} ${x.student.last_name}`,
+          })),
+        },
+      });
+      if ("error" in r) throw new Error(r.error);
+      toast.success(`Invoice request submitted (${r.count} line${r.count > 1 ? "s" : ""})`);
+      onChange();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not submit"); }
+    finally { setRequesting(false); }
+  }
+
+  // Group invoice rows by request_group_id
+  const groups = new Map<string, any[]>();
+  for (const r of invoices) {
+    const key = r.request_group_id ?? `single:${r.id}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  const grouped = Array.from(groups.values()).sort((a, b) =>
+    a[0].created_at < b[0].created_at ? 1 : -1,
+  );
+
+  return (
+    <div className="space-y-5">
+      <Card className="p-5">
+        <h2 className="font-display text-lg">Request an invoice</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Ask the studio to send you an invoice for the current month's tuition based on your
+          active enrollments.
+        </p>
+        {upcomingTuition.length > 0 && (
+          <div className="mt-3 space-y-2">
+            {upcomingTuition.map(({ student, e }: any) => (
+              <div key={e.id} className="flex items-center justify-between text-sm border-b border-border/60 py-1.5">
+                <span className="truncate">{e.class_schedule.class_name} · {student.first_name}</span>
+                <span className="font-medium">{fmtMoney(e.class_schedule.monthly_tuition_cents)}/mo</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between pt-2 text-sm font-semibold">
+              <span>Monthly total</span>
+              <span>{fmtMoney(monthlyTotal)}</span>
+            </div>
+          </div>
+        )}
+        <Button className="mt-4 rounded-full" onClick={requestInvoices} disabled={requesting || upcomingTuition.length === 0}>
+          {requesting ? "Submitting…" : "Request invoice"}
+        </Button>
+      </Card>
 
       <div>
-        <h2 className="font-display text-lg mb-3">Active subscriptions</h2>
-        {activeSubs.length === 0 ? (
-          <Card className="p-5"><p className="text-sm text-muted-foreground">No active subscriptions.</p></Card>
+        <h2 className="font-display text-lg mb-3">Your invoice requests</h2>
+        {grouped.length === 0 ? (
+          <Card className="p-5"><p className="text-sm text-muted-foreground">No invoice requests yet.</p></Card>
         ) : (
-          <div className="space-y-2">
-            {activeSubs.map(s => (
-              <Card key={s.id} className="p-4">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{s.price_id}</p>
-                    {s.current_period_end && (
+          <div className="space-y-3">
+            {grouped.map((rows) => {
+              const status = rows[0].status;
+              const invoicedTotal = rows.reduce((s: number, r: any) => s + (r.invoiced_amount_cents ?? 0), 0);
+              const estimated = rows.reduce((s: number, r: any) => s + (r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1), 0);
+              return (
+                <Card key={rows[0].id} className="p-4">
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium">Request from {fmtDate(rows[0].created_at)}</p>
                       <p className="text-xs text-muted-foreground">
-                        {s.cancel_at_period_end ? "Ends" : "Renews"} {fmtDate(s.current_period_end)}
+                        {rows.length} line{rows.length === 1 ? "" : "s"} ·
+                        {invoicedTotal > 0 ? ` invoiced ${fmtMoney(invoicedTotal)}` : ` estimate ${fmtMoney(estimated)}`}
                       </p>
-                    )}
+                    </div>
+                    <Badge variant="outline" className="shrink-0">{STATUS_LABEL[status] ?? status}</Badge>
                   </div>
-                  <Badge variant="secondary" className="shrink-0 capitalize">{s.status}</Badge>
-                </div>
-              </Card>
-            ))}
+                  <ul className="mt-3 text-sm space-y-1">
+                    {rows.map((r: any) => (
+                      <li key={r.id} className="flex items-center justify-between">
+                        <span className="truncate">
+                          {r.class_label}{r.student_name ? ` · ${r.student_name}` : ""}
+                        </span>
+                        <span className="text-muted-foreground">
+                          {r.invoiced_amount_cents != null
+                            ? fmtMoney(r.invoiced_amount_cents)
+                            : `est. ${fmtMoney((r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1))}`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {rows[0].admin_notes && (
+                    <p className="mt-2 text-xs text-muted-foreground italic">Note: {rows[0].admin_notes}</p>
+                  )}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
@@ -420,157 +470,6 @@ function JoinClassDialog({ open, student, classes, onClose, onSaved }: { open: b
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function BillingTab({ subs, invoices, onOpenPortal, portalBusy, snap }: { subs: any[]; invoices: any[]; onOpenPortal: () => void; portalBusy: boolean; snap: Snapshot; }) {
-  const [requesting, setRequesting] = useState(false);
-  const upcomingTuition = snap.students.flatMap((s: any) =>
-    s.enrollments
-      .filter((e: any) => e.status === "active" && e.class_schedule?.monthly_tuition_cents)
-      .map((e: any) => ({ student: s, e })),
-  );
-  const monthlyTotal = upcomingTuition.reduce((sum: number, x: any) => sum + (x.e.class_schedule.monthly_tuition_cents ?? 0), 0);
-
-  async function requestInvoices() {
-    if (upcomingTuition.length === 0) { toast.error("No enrolled tuition to invoice"); return; }
-    setRequesting(true);
-    try {
-      const r = await createInvoiceRequest({
-        data: {
-          items: upcomingTuition.map((x: any) => ({
-            classLabel: x.e.class_schedule.class_name,
-            monthlyAmountCents: x.e.class_schedule.monthly_tuition_cents,
-            studentName: `${x.student.first_name} ${x.student.last_name}`,
-          })),
-        },
-      });
-      if ("error" in r) throw new Error(r.error);
-      toast.success(`Invoice request submitted (${r.count} item${r.count > 1 ? "s" : ""})`);
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not submit"); }
-    finally { setRequesting(false); }
-  }
-
-  return (
-    <div className="space-y-5">
-      <Card className="p-5">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-          <div className="min-w-0">
-            <h2 className="font-display text-lg">Payment method</h2>
-            <p className="text-sm text-muted-foreground mt-1">Update your card, view receipts, or cancel subscriptions in the secure billing portal.</p>
-          </div>
-          <Button onClick={onOpenPortal} disabled={portalBusy} className="shrink-0 rounded-full">
-            {portalBusy ? "Opening…" : "Open portal"}
-          </Button>
-        </div>
-      </Card>
-
-      <div>
-        <h2 className="font-display text-lg mb-3">Upcoming tuition</h2>
-        {upcomingTuition.length === 0 ? (
-          <Card className="p-5"><p className="text-sm text-muted-foreground">No upcoming tuition.</p></Card>
-        ) : (
-          <div className="space-y-2">
-            {upcomingTuition.map(({ student, e }: any) => (
-              <Card key={e.id} className="p-4 grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{e.class_schedule.class_name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{student.first_name}</p>
-                </div>
-                <p className="text-sm font-semibold shrink-0">{fmtMoney(e.class_schedule.monthly_tuition_cents)}/mo</p>
-              </Card>
-            ))}
-            <div className="flex items-center justify-between gap-2 px-1 pt-2">
-              <p className="text-sm font-semibold">Monthly total</p>
-              <p className="text-sm font-semibold">{fmtMoney(monthlyTotal)}</p>
-            </div>
-            <Button variant="outline" className="rounded-full" onClick={requestInvoices} disabled={requesting}>
-              {requesting ? "Submitting…" : "Request invoice instead of auto-pay"}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <h2 className="font-display text-lg mb-3">All subscriptions</h2>
-        {subs.length === 0 ? (
-          <Card className="p-5"><p className="text-sm text-muted-foreground">No subscriptions on file.</p></Card>
-        ) : (
-          <div className="space-y-2">
-            {subs.map(s => (
-              <Card key={s.id} className="p-4">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{s.price_id}</p>
-                    {s.current_period_end && (
-                      <p className="text-xs text-muted-foreground">
-                        {s.cancel_at_period_end ? "Ends" : "Renews"} {fmtDate(s.current_period_end)}
-                      </p>
-                    )}
-                  </div>
-                  <Badge variant="secondary" className="shrink-0 capitalize">{s.status}</Badge>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {invoices.length > 0 && (
-        <div>
-          <h2 className="font-display text-lg mb-3">Invoice requests</h2>
-          <div className="space-y-2">
-            {invoices.map((r: any) => (
-              <Card key={r.id} className="p-4">
-                <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{r.class_label}</p>
-                    <p className="text-xs text-muted-foreground truncate">{r.student_name ?? ""} · {fmtMoney(r.monthly_amount_cents)}/mo × {r.months_remaining}</p>
-                  </div>
-                  <Badge variant="outline" className="shrink-0 capitalize">{r.status}</Badge>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function HistoryTab({ payments }: { payments: PaymentHistoryItem[] | null }) {
-  return (
-    <div className="space-y-3">
-      <h2 className="font-display text-lg">Payment history</h2>
-      {payments === null ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : payments.length === 0 ? (
-        <Card className="p-5"><p className="text-sm text-muted-foreground">No payments yet.</p></Card>
-      ) : (
-        <div className="space-y-2">
-          {payments.map(p => (
-            <Card key={p.id} className="p-4">
-              <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-center">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">
-                    {fmtMoney(p.amount_cents, p.currency)}
-                    <span className="ml-2 text-xs font-normal text-muted-foreground capitalize">{p.status}</span>
-                  </p>
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">
-                    {fmtDate(p.created_at)} · {p.description ?? (p.kind === "invoice" ? "Invoice" : "Charge")}
-                  </p>
-                </div>
-                {p.receipt_url && (
-                  <Button asChild size="sm" variant="outline" className="shrink-0 rounded-full">
-                    <a href={p.receipt_url} target="_blank" rel="noopener noreferrer">Receipt</a>
-                  </Button>
-                )}
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
   );
 }
 

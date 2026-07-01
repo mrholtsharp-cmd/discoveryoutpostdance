@@ -278,48 +278,71 @@ export type Database = {
       }
       invoice_requests: {
         Row: {
+          admin_notes: string | null
           class_label: string
           created_at: string
           email: string
           id: string
+          invoiced_amount_cents: number | null
           monthly_amount_cents: number
           months_remaining: number
           notes: string | null
+          paid_at: string | null
           parent_id: string
+          request_group_id: string | null
           season_year: number
+          sent_at: string | null
           status: string
           student_name: string | null
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
           class_label: string
           created_at?: string
           email: string
           id?: string
+          invoiced_amount_cents?: number | null
           monthly_amount_cents: number
           months_remaining: number
           notes?: string | null
+          paid_at?: string | null
           parent_id: string
+          request_group_id?: string | null
           season_year: number
+          sent_at?: string | null
           status?: string
           student_name?: string | null
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
           class_label?: string
           created_at?: string
           email?: string
           id?: string
+          invoiced_amount_cents?: number | null
           monthly_amount_cents?: number
           months_remaining?: number
           notes?: string | null
+          paid_at?: string | null
           parent_id?: string
+          request_group_id?: string | null
           season_year?: number
+          sent_at?: string | null
           status?: string
           student_name?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoice_requests_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "parents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       parents: {
         Row: {

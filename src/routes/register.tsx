@@ -12,29 +12,24 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
-import { createCartCheckoutSession, createInvoiceRequest } from "@/utils/payments.functions";
-import { getStripeEnvironment } from "@/lib/stripe";
-import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
+import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, CreditCard, Mail } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
     meta: [
       { title: "Register — Discovery Outpost" },
-      { name: "description", content: "Create your parent account and enroll your students in classes at Discovery Outpost." },
+      { name: "description", content: "Create your parent account, enroll your students, and request an invoice." },
       { property: "og:title", content: "Register for Classes — Discovery Outpost" },
-      { property: "og:description", content: "Multi-step registration: parent info, students, class selection, review." },
+      { property: "og:description", content: "Multi-step registration: parent info, students, class selection, invoice request." },
     ],
   }),
   component: RegisterWizard,
 });
 
 const REGISTRATION_FEE_CENTS = 1000;
-const REGISTRATION_FEE_LOOKUP_KEY = "do_registration_fee";
 const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
-
-type PaymentPlan = "auto_pay" | "invoice";
 
 type StudentDraft = {
   first_name: string;
@@ -60,7 +55,7 @@ type WizardState = {
     emergency_contact_phone: string;
   };
   students: StudentDraft[];
-  payment_plan: PaymentPlan;
+  notes: string;
 };
 
 const emptyStudent = (): StudentDraft => ({
@@ -75,7 +70,7 @@ const initialState: WizardState = {
     address: "", emergency_contact_name: "", emergency_contact_phone: "",
   },
   students: [emptyStudent()],
-  payment_plan: "auto_pay",
+  notes: "",
 };
 
 function calcAge(dob: string): number | null {
@@ -118,6 +113,7 @@ function RegisterWizard() {
   });
 
   const submitFn = useServerFn(submitFullRegistration);
+  const invoiceFn = useServerFn(createInvoiceRequest);
 
   function setStep(step: WizardState["step"]) { setState((s) => ({ ...s, step })); }
   function updateParent<K extends keyof WizardState["parent"]>(k: K, v: WizardState["parent"][K]) {
@@ -168,7 +164,6 @@ function RegisterWizard() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      // Sign up or sign in
       const email = state.parent.email.trim().toLowerCase();
       const password = state.parent.password;
       const { data: existingSession } = await supabase.auth.getSession();
@@ -178,14 +173,12 @@ function RegisterWizard() {
         });
         if (signUpErr) {
           if (signUpErr.message.toLowerCase().includes("registered")) {
-            // Try sign in
             const { error: siErr } = await supabase.auth.signInWithPassword({ email, password });
             if (siErr) throw new Error("An account with this email already exists. Please sign in first, then continue.");
           } else {
             throw signUpErr;
           }
         } else if (!signUp.session) {
-          // Email confirmation flow — sign in with password just in case
           const { error: siErr } = await supabase.auth.signInWithPassword({ email, password });
           if (siErr) throw new Error("Account created but could not sign in automatically. Check your email to confirm.");
         }
@@ -219,76 +212,37 @@ function RegisterWizard() {
 
       const waitlisted = result.placements.filter((p) => p.placement === "waitlisted").length;
       const enrolled = result.placements.filter((p) => p.placement === "enrolled").length;
-      toast.success(`Registered! ${enrolled} enrolled, ${waitlisted} waitlisted.`);
-      sessionStorage.removeItem(WIZARD_STORAGE_KEY);
 
-      // Build payment cart from the enrolled (non-waitlist) classes only.
+      // Build invoice request items from enrollments (waitlisted classes aren't billed).
       const classesData = classesQuery.data ?? [];
       const classMap = new Map(classesData.map((c) => [c.id, c]));
-      const enrolledClassIds = result.placements
-        .filter((p) => p.placement === "enrolled")
-        .map((p) => p.class_id);
-
-      // Find student name for each enrollment (used by invoice request labels).
       const studentNameByClassId = new Map<string, string>();
       for (const s of state.students) {
         for (const cid of s.class_ids) {
           studentNameByClassId.set(cid, `${s.first_name} ${s.last_name}`.trim());
         }
       }
-
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (state.payment_plan === "invoice") {
-        // No card charge today — registration fee + monthly tuition invoiced.
-        const items: { classLabel: string; monthlyAmountCents: number; studentName?: string }[] = [];
-        items.push({ classLabel: "Season Registration Fee", monthlyAmountCents: REGISTRATION_FEE_CENTS });
-        for (const cid of enrolledClassIds) {
-          const c = classMap.get(cid);
-          if (!c || !c.monthly_tuition_cents) continue;
-          items.push({
-            classLabel: c.class_name,
-            monthlyAmountCents: c.monthly_tuition_cents,
-            studentName: studentNameByClassId.get(cid),
-          });
-        }
-        if (items.length > 1) {
-          const inv = await createInvoiceRequest({ data: { items } });
-          if ("error" in inv) throw new Error(inv.error);
-        }
-        toast.success("Invoice request received — the studio will email your invoice.");
-        navigate({ to: "/account" });
-        return;
+      const items: { classLabel: string; monthlyAmountCents: number; studentName?: string }[] = [];
+      items.push({ classLabel: "Season Registration Fee", monthlyAmountCents: REGISTRATION_FEE_CENTS });
+      for (const p of result.placements) {
+        if (p.placement !== "enrolled") continue;
+        const c = classMap.get(p.class_id);
+        if (!c || !c.monthly_tuition_cents) continue;
+        items.push({
+          classLabel: c.class_name,
+          monthlyAmountCents: c.monthly_tuition_cents,
+          studentName: studentNameByClassId.get(p.class_id),
+        });
       }
 
-      // Auto-pay: bundle registration fee + a monthly subscription per enrolled class.
-      const cartItems: { priceId: string; quantity: number }[] = [
-        { priceId: REGISTRATION_FEE_LOOKUP_KEY, quantity: 1 },
-      ];
-      // Aggregate identical classes (multiple students in same class) by quantity.
-      const monthlyCounts = new Map<string, number>();
-      for (const cid of enrolledClassIds) {
-        const c = classMap.get(cid);
-        const lk = c?.stripe_monthly_lookup_key;
-        if (!lk) continue;
-        monthlyCounts.set(lk, (monthlyCounts.get(lk) ?? 0) + 1);
-      }
-      for (const [lk, qty] of monthlyCounts) {
-        cartItems.push({ priceId: lk, quantity: qty });
+      if (items.length > 1) {
+        const inv = await invoiceFn({ data: { items, notes: state.notes || undefined } });
+        if ("error" in inv) throw new Error(inv.error);
       }
 
-      // If no enrolled classes (everything waitlisted), still charge registration.
-      const checkout = await createCartCheckoutSession({
-        data: {
-          items: cartItems,
-          returnUrl: `${window.location.origin}/checkout/return?session_id={CHECKOUT_SESSION_ID}`,
-          environment: getStripeEnvironment(),
-          paymentPlan: monthlyCounts.size > 0 ? "auto_pay" : "semester",
-          ...(user && { userId: user.id, customerEmail: user.email ?? undefined }),
-        },
-      });
-      if ("error" in checkout) throw new Error(checkout.error);
-      window.location.href = checkout.url;
+      toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted. Invoice request sent.`);
+      sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+      navigate({ to: "/account" });
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -298,10 +252,12 @@ function RegisterWizard() {
 
   return (
     <Layout>
-      <PaymentTestModeBanner />
       <section className="mx-auto max-w-3xl px-4 py-8 pb-32 sm:py-12">
         <h1 className="font-display text-3xl sm:text-4xl">Register</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Create your account and enroll your students in just a few steps.</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Create your account, enroll your students, and submit an invoice request. The studio
+          will email your bill — no payment required to finish registration.
+        </p>
 
         <WizardProgress current={state.step} />
 
@@ -323,7 +279,7 @@ function RegisterWizard() {
               state={state}
               classes={classesQuery.data ?? []}
               totalMonthly={totalMonthly}
-              setPaymentPlan={(p) => setState((s) => ({ ...s, payment_plan: p }))}
+              setNotes={(v) => setState((s) => ({ ...s, notes: v }))}
             />
           )}
         </Card>
@@ -352,11 +308,7 @@ function RegisterWizard() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmitAll} disabled={submitting}>
-                {submitting
-                  ? "Submitting…"
-                  : state.payment_plan === "invoice"
-                    ? "Submit & Request Invoice"
-                    : "Submit & Pay"}
+                {submitting ? "Submitting…" : "Submit & Request Invoice"}
               </Button>
             )}
           </div>
@@ -574,14 +526,14 @@ function Step3Classes({
 }
 
 function Step4Review({
-  state, classes, totalMonthly, setPaymentPlan,
-}: { state: WizardState; classes: ClassRow[]; totalMonthly: number; setPaymentPlan: (p: PaymentPlan) => void }) {
+  state, classes, totalMonthly, setNotes,
+}: { state: WizardState; classes: ClassRow[]; totalMonthly: number; setNotes: (v: string) => void }) {
   const classMap = new Map(classes.map((c) => [c.id, c]));
   return (
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-xl">Review &amp; Submit</h2>
-        <p className="text-sm text-muted-foreground">Confirm everything looks right before submitting.</p>
+        <p className="text-sm text-muted-foreground">Confirm everything looks right, then submit your invoice request.</p>
       </div>
 
       <section>
@@ -623,40 +575,29 @@ function Step4Review({
           <span>Monthly tuition total</span>
           <span>${(totalMonthly/100).toFixed(2)}/mo</span>
         </div>
-        <div className="mt-2 flex justify-between border-t pt-2 font-semibold">
-          <span>Total Due Today</span>
-          <span>
-            {state.payment_plan === "invoice"
-              ? "$0.00"
-              : `$${((REGISTRATION_FEE_CENTS + totalMonthly)/100).toFixed(2)}`}
-          </span>
-        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          These amounts are estimates. The studio will confirm the final invoice amount.
+        </p>
       </section>
 
-      <section>
-        <h3 className="font-semibold">Payment Method</h3>
-        <p className="text-xs text-muted-foreground">Choose how you'd like to pay tuition.</p>
-        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setPaymentPlan("auto_pay")}
-            className={`text-left rounded-md border p-4 transition-colors ${state.payment_plan === "auto_pay" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}
-          >
-            <div className="flex items-center gap-2 font-semibold"><CreditCard className="h-4 w-4" /> Auto-pay by card</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Pay registration today and auto-charge monthly tuition. Cards, Apple Pay, Google Pay, Link supported.
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setPaymentPlan("invoice")}
-            className={`text-left rounded-md border p-4 transition-colors ${state.payment_plan === "invoice" ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}
-          >
-            <div className="flex items-center gap-2 font-semibold"><Mail className="h-4 w-4" /> Request monthly invoice</div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The studio will email you an invoice each month. No card on file today.
-            </p>
-          </button>
+      <section className="rounded-md border p-4">
+        <div className="flex items-center gap-2">
+          <Mail className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold">Invoice request</h3>
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Submitting this form completes your registration. The studio will email you an invoice
+          for tuition and fees. No payment is required now.
+        </p>
+        <div className="mt-3">
+          <Label className="text-sm">Notes for the studio (optional)</Label>
+          <Textarea
+            className="mt-1"
+            rows={3}
+            value={state.notes}
+            placeholder="Anything the studio should know about billing, discounts, or payment method?"
+            onChange={(e) => setNotes(e.target.value)}
+          />
         </div>
       </section>
     </div>

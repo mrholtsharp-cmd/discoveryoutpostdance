@@ -12,7 +12,6 @@ async function ensureAdmin(context: { supabase: any; userId: string }) {
   return true;
 }
 
-// Public-ish: lets the admin shell decide whether to redirect non-admins.
 export const isCurrentUserAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -30,22 +29,16 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [
-      studentsRes, parentsRes, enrollmentsRes, waitlistRes,
-      classesRes, regsRes, subsRes,
-    ] = await Promise.all([
+    const [studentsRes, parentsRes, enrollmentsRes, waitlistRes, classesRes, regsRes, invRes] = await Promise.all([
       supabaseAdmin.from("students").select("id, parent_id, created_at"),
       supabaseAdmin.from("parents").select("id, created_at"),
-      supabaseAdmin.from("enrollments").select("id, class_id, status, enrolled_at, student_id"),
+      supabaseAdmin.from("enrollments").select("id, class_id, status, student_id"),
       supabaseAdmin.from("waitlist_entries").select("id, class_id"),
       supabaseAdmin.from("class_schedule").select("id, day, class_name, time, capacity, instructor"),
-      supabaseAdmin.from("registrations").select(
-        "id, created_at, student_name, parent_name, email, payment_status, amount_paid_cents, paid_at, refunded_amount_cents, payment_failure_flagged, approval_status",
-      ),
-      supabaseAdmin.from("subscriptions").select("id, status, current_period_end, environment"),
+      supabaseAdmin.from("registrations").select("id, created_at, student_name, parent_name, email, approval_status, desired_class"),
+      supabaseAdmin.from("invoice_requests").select("id, status, monthly_amount_cents, invoiced_amount_cents, months_remaining, created_at"),
     ]);
 
     const students = studentsRes.data ?? [];
@@ -54,7 +47,7 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     const waitlist = waitlistRes.data ?? [];
     const classes = classesRes.data ?? [];
     const regs = regsRes.data ?? [];
-    const subs = subsRes.data ?? [];
+    const invoices = invRes.data ?? [];
 
     const activeFamilies = new Set(
       students
@@ -62,32 +55,16 @@ export const getAdminOverview = createServerFn({ method: "GET" })
         .map((s) => s.parent_id),
     ).size;
 
-    const monthRevenue = regs
-      .filter((r) => r.paid_at && r.paid_at >= monthStart)
-      .reduce((sum, r) => sum + (r.amount_paid_cents ?? 0) - (r.refunded_amount_cents ?? 0), 0);
+    const pendingInvoices = invoices.filter((r) => r.status === "pending").length;
+    const sentInvoices = invoices.filter((r) => r.status === "sent").length;
+    const paidInvoices = invoices.filter((r) => r.status === "paid").length;
 
-    const outstanding = regs.filter(
-      (r) => r.approval_status === "approved" && ["pending", "past_due", "awaiting_card"].includes(r.payment_status ?? ""),
-    ).length;
-
-    const failed = regs.filter((r) => r.payment_failure_flagged).length;
-
-    // Upcoming subscription renewals next 30 days
-    const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const upcoming = subs.filter(
-      (s) =>
-        ["active", "trialing", "past_due"].includes(s.status ?? "") &&
-        s.current_period_end &&
-        new Date(s.current_period_end) <= in30 &&
-        new Date(s.current_period_end) >= now,
-    ).length;
+    const outstandingCents = invoices
+      .filter((r) => r.status === "pending" || r.status === "sent")
+      .reduce((sum, r) => sum + ((r.invoiced_amount_cents ?? r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1)), 0);
 
     const enrollmentByClass = classes.map((c) => ({
-      id: c.id,
-      class_name: c.class_name,
-      day: c.day,
-      time: c.time,
-      capacity: c.capacity,
+      id: c.id, class_name: c.class_name, day: c.day, time: c.time, capacity: c.capacity,
       enrolled: enrollments.filter((e) => e.class_id === c.id && e.status === "active").length,
       waitlist: waitlist.filter((w) => w.class_id === c.id).length,
     }));
@@ -100,10 +77,10 @@ export const getAdminOverview = createServerFn({ method: "GET" })
     return {
       totalStudents: students.length,
       activeFamilies,
-      monthRevenueCents: monthRevenue,
-      outstandingCount: outstanding,
-      failedCount: failed,
-      upcomingPaymentsCount: upcoming,
+      pendingInvoices,
+      sentInvoices,
+      paidInvoices,
+      outstandingCents,
       totalEnrolled: enrollments.filter((e) => e.status === "active").length,
       totalWaitlisted: waitlist.length,
       newParents30d: parents.filter((p) => p.created_at >= thirtyDaysAgo).length,
@@ -150,7 +127,6 @@ export const updateStudentAdmin = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// Move a student between classes (creates/cancels enrollments)
 export const moveStudentToClass = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -168,7 +144,6 @@ export const moveStudentToClass = createServerFn({ method: "POST" })
         .update({ status: "cancelled" } as never)
         .eq("student_id", data.student_id).eq("class_id", data.from_class_id).eq("status", "active");
     }
-    // Create enrollment if not exists
     const { data: existing } = await supabaseAdmin.from("enrollments")
       .select("id").eq("student_id", data.student_id).eq("class_id", data.to_class_id).maybeSingle();
     if (existing) {
@@ -269,120 +244,6 @@ export const deleteClassAdmin = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---------- PAYMENTS ----------
-export const listPaymentsAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await ensureAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data, error } = await supabaseAdmin
-      .from("registrations")
-      .select("id, parent_name, student_name, email, desired_class, amount_paid_cents, paid_at, payment_status, refunded_amount_cents, refunded_at, stripe_charge_id, stripe_payment_intent_id, payment_failure_flagged, last_payment_error, created_at")
-      .order("paid_at", { ascending: false, nullsFirst: false });
-    if (error) throw new Error(error.message);
-    return data ?? [];
-  });
-
-// Issue a refund via Stripe (full or partial)
-export const issueRefund = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({
-      registration_id: z.string().uuid(),
-      amount_cents: z.number().int().positive().nullable(),
-      environment: z.enum(["sandbox", "live"]),
-      reason: z.string().max(500).optional(),
-    }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    await ensureAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { createStripeClient, getStripeErrorMessage } = await import("@/lib/stripe.server");
-    const { data: reg, error } = await supabaseAdmin.from("registrations")
-      .select("id, stripe_payment_intent_id, stripe_charge_id, amount_paid_cents, refunded_amount_cents, email")
-      .eq("id", data.registration_id).maybeSingle();
-    if (error || !reg) return { error: "Registration not found" };
-    if (!reg.stripe_payment_intent_id && !reg.stripe_charge_id) {
-      return { error: "No Stripe payment recorded for this registration" };
-    }
-    const stripe = createStripeClient(data.environment);
-    try {
-      const refundParams: any = {};
-      if (reg.stripe_payment_intent_id) refundParams.payment_intent = reg.stripe_payment_intent_id;
-      else refundParams.charge = reg.stripe_charge_id;
-      if (data.amount_cents) refundParams.amount = data.amount_cents;
-      if (data.reason) refundParams.metadata = { admin_reason: data.reason };
-      const refund = await stripe.refunds.create(refundParams);
-      // Webhook charge.refunded will update DB; also patch immediately for instant feedback.
-      const totalRefunded = (reg.refunded_amount_cents ?? 0) + (refund.amount ?? 0);
-      const isFull = totalRefunded >= (reg.amount_paid_cents ?? 0);
-      await supabaseAdmin.from("registrations").update({
-        refunded_amount_cents: totalRefunded,
-        refunded_at: new Date().toISOString(),
-        payment_status: isFull ? "refunded" : "partially_refunded",
-      } as never).eq("id", reg.id);
-      return { ok: true, refund_id: refund.id };
-    } catch (e) {
-      return { error: getStripeErrorMessage(e) };
-    }
-  });
-
-// ---------- SUBSCRIPTIONS ----------
-export const listSubscriptionsAdmin = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    await ensureAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: subs, error } = await supabaseAdmin
-      .from("subscriptions")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
-    // Join parent info via auth user id
-    const userIds = Array.from(new Set((subs ?? []).map((s) => s.user_id).filter(Boolean)));
-    let parentMap: Record<string, { first_name: string; last_name: string; email: string }> = {};
-    if (userIds.length) {
-      const { data: parents } = await supabaseAdmin.from("parents")
-        .select("auth_user_id, first_name, last_name, email").in("auth_user_id", userIds);
-      for (const p of parents ?? []) {
-        if (p.auth_user_id) parentMap[p.auth_user_id] = {
-          first_name: p.first_name ?? "", last_name: p.last_name ?? "", email: p.email ?? "",
-        };
-      }
-    }
-    return (subs ?? []).map((s) => ({ ...s, parent: parentMap[s.user_id] ?? null }));
-  });
-
-export const cancelSubscriptionAdmin = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) =>
-    z.object({
-      subscription_id: z.string().uuid(),
-      immediate: z.boolean().default(false),
-    }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    await ensureAdmin(context);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { createStripeClient, getStripeErrorMessage } = await import("@/lib/stripe.server");
-    const { data: sub } = await supabaseAdmin.from("subscriptions")
-      .select("stripe_subscription_id, environment").eq("id", data.subscription_id).maybeSingle();
-    if (!sub) return { error: "Subscription not found" };
-    const env = (sub.environment as "sandbox" | "live") ?? "sandbox";
-    const stripe = createStripeClient(env);
-    try {
-      if (data.immediate) {
-        await stripe.subscriptions.cancel(sub.stripe_subscription_id);
-      } else {
-        await stripe.subscriptions.update(sub.stripe_subscription_id, { cancel_at_period_end: true });
-        await supabaseAdmin.from("subscriptions").update({ cancel_at_period_end: true } as never).eq("id", data.subscription_id);
-      }
-      return { ok: true };
-    } catch (e) {
-      return { error: getStripeErrorMessage(e) };
-    }
-  });
-
 // ---------- WAITLISTS ----------
 export const listWaitlistsAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
@@ -407,7 +268,6 @@ export const approveWaitlistEntry = createServerFn({ method: "POST" })
     const { data: w, error } = await supabaseAdmin.from("waitlist_entries")
       .select("id, student_id, class_id").eq("id", data.waitlist_id).maybeSingle();
     if (error || !w) return { error: "Waitlist entry not found" };
-    // Create enrollment (or reactivate)
     const { data: existing } = await supabaseAdmin.from("enrollments")
       .select("id").eq("student_id", w.student_id).eq("class_id", w.class_id).maybeSingle();
     if (existing) {
@@ -488,7 +348,7 @@ export const recordAttendance = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-// ---------- TEACHERS (derived from class_schedule.instructor) ----------
+// ---------- TEACHERS ----------
 export const listTeachersAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {

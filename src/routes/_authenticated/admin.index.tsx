@@ -4,8 +4,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
 import { getAdminOverview } from "@/lib/admin-v2.functions";
 import {
-  Users, UsersRound, DollarSign, AlertTriangle, Clock,
-  CalendarCheck, ListChecks, Repeat, CalendarClock, Activity,
+  Users, UsersRound, FileText, DollarSign, CheckCircle2, Clock,
+  CalendarCheck, ListChecks, Repeat, Activity,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/")({
@@ -59,16 +59,16 @@ function AdminPage() {
     <section className="mx-auto max-w-7xl px-4 sm:px-6 py-8 space-y-8">
       <div>
         <h1 className="font-display text-3xl">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">At-a-glance metrics across students, classes, and payments.</p>
+        <p className="text-sm text-muted-foreground">At-a-glance metrics across students, classes, and invoices.</p>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <StatCard icon={Users} label="Total students" value={data.totalStudents} to="/admin/students" hint={`${data.newStudents30d} new in 30 days`} />
         <StatCard icon={UsersRound} label="Active families" value={data.activeFamilies} to="/admin/parents" hint={`${data.newParents30d} new in 30 days`} />
-        <StatCard icon={DollarSign} label="Revenue this month" value={fmtMoney(data.monthRevenueCents)} tone="good" to="/admin/payments" />
-        <StatCard icon={Clock} label="Outstanding" value={data.outstandingCount} tone={data.outstandingCount > 0 ? "warn" : "default"} to="/admin/payments" />
-        <StatCard icon={AlertTriangle} label="Failed payments" value={data.failedCount} tone={data.failedCount > 0 ? "danger" : "default"} to="/admin/payments" />
-        <StatCard icon={CalendarClock} label="Upcoming (30d)" value={data.upcomingPaymentsCount} to="/admin/subscriptions" hint="Renewals coming" />
+        <StatCard icon={FileText} label="Pending invoices" value={data.pendingInvoices} tone={data.pendingInvoices > 0 ? "warn" : "default"} to="/admin/invoice-requests" />
+        <StatCard icon={Clock} label="Invoices sent" value={data.sentInvoices} to="/admin/invoice-requests" />
+        <StatCard icon={CheckCircle2} label="Invoices paid" value={data.paidInvoices} tone="good" to="/admin/invoice-requests" />
+        <StatCard icon={DollarSign} label="Outstanding est." value={fmtMoney(data.outstandingCents)} tone={data.outstandingCents > 0 ? "warn" : "default"} to="/admin/invoice-requests" />
         <StatCard icon={CalendarCheck} label="Current enrollment" value={data.totalEnrolled} tone="good" to="/admin/classes" />
         <StatCard icon={ListChecks} label="Waitlists" value={data.totalWaitlisted} tone={data.totalWaitlisted > 0 ? "warn" : "default"} to="/admin/waitlists" />
         <StatCard icon={Repeat} label="Recent registrations" value={data.recentRegistrations.length} to="/admin/registrations" />
@@ -76,7 +76,7 @@ function AdminPage() {
 
       <Card className="p-0 overflow-hidden">
         <div className="px-4 sm:px-6 py-3 border-b border-border flex items-center justify-between">
-          <h2 className="font-display text-lg">Class enrollment & waitlists</h2>
+          <h2 className="font-display text-lg">Class enrollment &amp; waitlists</h2>
           <Link to="/admin/classes" className="text-xs text-primary hover:underline">Manage classes →</Link>
         </div>
         <div className="overflow-x-auto">
