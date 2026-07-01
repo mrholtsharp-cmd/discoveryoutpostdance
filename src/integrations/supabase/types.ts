@@ -285,7 +285,7 @@ export type Database = {
           monthly_amount_cents: number
           months_remaining: number
           notes: string | null
-          parent_id: string | null
+          parent_id: string
           season_year: number
           status: string
           student_name: string | null
@@ -299,7 +299,7 @@ export type Database = {
           monthly_amount_cents: number
           months_remaining: number
           notes?: string | null
-          parent_id?: string | null
+          parent_id: string
           season_year: number
           status?: string
           student_name?: string | null
@@ -313,7 +313,7 @@ export type Database = {
           monthly_amount_cents?: number
           months_remaining?: number
           notes?: string | null
-          parent_id?: string | null
+          parent_id?: string
           season_year?: number
           status?: string
           student_name?: string | null
