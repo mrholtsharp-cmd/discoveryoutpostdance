@@ -422,8 +422,8 @@ export const createCartCheckoutSession = createServerFn({ method: "POST" })
             metadata: {
               ...(data.userId && { userId: data.userId }),
               ...(data.registrationId && { registration_id: data.registrationId }),
+              ...(subscriptionCancelAt && { cancel_at_ts: String(subscriptionCancelAt) }),
             },
-            ...(subscriptionCancelAt && { cancel_at: subscriptionCancelAt }),
             ...(oneTime.length > 0 && {
               add_invoice_items: oneTime.map((r) => ({
                 price: r.price.id,
