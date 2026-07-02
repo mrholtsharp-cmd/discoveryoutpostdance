@@ -17,7 +17,6 @@ import {
   upsertEmergencyContact,
   deleteEmergencyContact,
   upsertStudent,
-  joinClass,
   cancelEnrollment,
   leaveWaitlist,
 } from "@/lib/parent-portal.functions";
