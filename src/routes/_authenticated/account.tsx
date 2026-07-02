@@ -424,59 +424,6 @@ function StudentDialog({ open, student, onClose, onSaved }: { open: boolean; stu
   );
 }
 
-function JoinClassDialog({ open, student, classes, onClose, onSaved }: { open: boolean; student: any; classes: ClassRow[]; onClose: () => void; onSaved: () => void }) {
-  const [classId, setClassId] = useState<string>("");
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setClassId(""); }, [open]);
-
-  const enrolledIds = new Set<string>((student?.enrollments ?? []).filter((e: any) => e.status === "active").map((e: any) => e.class_id));
-  const waitedIds = new Set<string>((student?.waitlist ?? []).map((w: any) => w.class_id));
-  const available = classes.filter(c => !enrolledIds.has(c.id) && !waitedIds.has(c.id));
-
-  async function go() {
-    if (!classId) return;
-    setBusy(true);
-    try {
-      const r = await joinClass({ data: { studentId: student.id, classId } });
-      if ("error" in r) throw new Error(r.error);
-      if (r.placement === "enrolled") toast.success("Enrolled!");
-      else if (r.placement === "waitlisted") toast.success(`Added to waitlist (#${r.position})`);
-      else toast(r.placement);
-      onSaved(); onClose();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not join"); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader><DialogTitle>Join a class — {student?.first_name}</DialogTitle></DialogHeader>
-        <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-          {available.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No more classes available to join.</p>
-          ) : available.map(c => (
-            <button key={c.id} onClick={() => setClassId(c.id)}
-              className={`w-full text-left p-3 rounded-lg border transition ${classId === c.id ? "border-foreground bg-muted" : "border-border hover:bg-muted/50"}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-medium truncate">{c.class_name}</p>
-                  <p className="text-xs text-muted-foreground">{c.day} {c.time}{c.age_group ? ` · ${c.age_group}` : ""}</p>
-                </div>
-                {c.is_full ? <Badge variant="outline">Full — waitlist</Badge>
-                  : c.remaining != null ? <Badge variant="secondary">{c.remaining} left</Badge> : null}
-              </div>
-            </button>
-          ))}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={go} disabled={busy || !classId}>{busy ? "Joining…" : "Confirm"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function ProfileTab({ snap, onChange }: { snap: Snapshot; onChange: () => void }) {
   const p = snap.parent!;
   const [form, setForm] = useState({
