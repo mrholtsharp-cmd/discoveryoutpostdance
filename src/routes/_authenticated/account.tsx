@@ -21,8 +21,6 @@ import {
   leaveWaitlist,
 } from "@/lib/parent-portal.functions";
 import { listClassesWithAvailability } from "@/lib/registration-v2.functions";
-import { PayInvoiceButton } from "@/components/site/PayInvoiceButton";
-import { PaymentTestModeBanner } from "@/components/site/PaymentTestModeBanner";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({ meta: [{ title: "Parent Portal — Discovery Outpost" }, { name: "robots", content: "noindex" }] }),
@@ -193,8 +191,6 @@ function OverviewTab({ snap }: { snap: Snapshot }) {
 function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void }) {
   const [requesting, setRequesting] = useState(false);
   const invoices = (snap.invoice_requests ?? []) as any[];
-  const registrationInvoices = ((snap as any).invoices ?? []) as any[];
-  const studentCount = Math.max(1, (snap.students ?? []).length);
 
   const upcomingTuition = snap.students.flatMap((s: any) =>
     s.enrollments
@@ -236,58 +232,6 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
 
   return (
     <div className="space-y-5">
-      <PaymentTestModeBanner />
-      {registrationInvoices.length > 0 && (
-        <div>
-          <h2 className="font-display text-lg mb-3">Your invoices</h2>
-          <div className="space-y-3">
-            {registrationInvoices.map((inv: any) => {
-              const isPaid = inv.status === "paid";
-              const isMonthly = inv.tuition_plan === "monthly";
-              const hasSub = !!inv.stripe_subscription_id;
-              return (
-                <Card key={inv.id} className="p-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 items-start">
-                    <div className="min-w-0">
-                      <p className="font-medium">Invoice {inv.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {inv.semester_label} · {isMonthly ? "Monthly Tuition" : "Semester Tuition"} · Due {fmtDate(inv.due_date)}
-                      </p>
-                      <p className="text-sm mt-1 font-semibold">{fmtMoney(inv.total_cents)}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <Badge variant={isPaid ? "default" : "outline"}>
-                        {isPaid ? "Paid" : inv.status === "overdue" ? "Overdue" : inv.status === "sent" ? "Sent" : "New"}
-                      </Badge>
-                      {!isPaid && (
-                        <div className="flex flex-wrap justify-end gap-2">
-                          {isMonthly && !hasSub && (
-                            <PayInvoiceButton
-                              invoiceId={inv.id}
-                              invoiceNumber={inv.invoice_number}
-                              mode="monthly"
-                              studentCount={studentCount}
-                              onPaid={onChange}
-                            />
-                          )}
-                          <PayInvoiceButton
-                            invoiceId={inv.id}
-                            invoiceNumber={inv.invoice_number}
-                            mode="one_time"
-                            variant={isMonthly ? "outline" : "default"}
-                            label={isMonthly ? "Pay First Month" : "Pay Now"}
-                            onPaid={onChange}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
       <Card className="p-5">
         <h2 className="font-display text-lg">Request an invoice</h2>
         <p className="text-sm text-muted-foreground mt-1">

@@ -485,19 +485,13 @@ export type Database = {
           invoice_preference: string
           notes: string | null
           paid_at: string | null
-          paid_via: string | null
           parent_email: string
           parent_id: string
           parent_name: string
-          payment_failure_reason: string | null
           semester_label: string
           semester_year: number
           sent_at: string | null
           status: string
-          stripe_environment: string | null
-          stripe_payment_intent_id: string | null
-          stripe_session_id: string | null
-          stripe_subscription_id: string | null
           subtotal_cents: number
           total_cents: number
           tuition_plan: string
@@ -516,19 +510,13 @@ export type Database = {
           invoice_preference: string
           notes?: string | null
           paid_at?: string | null
-          paid_via?: string | null
           parent_email: string
           parent_id: string
           parent_name: string
-          payment_failure_reason?: string | null
           semester_label: string
           semester_year: number
           sent_at?: string | null
           status?: string
-          stripe_environment?: string | null
-          stripe_payment_intent_id?: string | null
-          stripe_session_id?: string | null
-          stripe_subscription_id?: string | null
           subtotal_cents?: number
           total_cents?: number
           tuition_plan: string
@@ -547,19 +535,13 @@ export type Database = {
           invoice_preference?: string
           notes?: string | null
           paid_at?: string | null
-          paid_via?: string | null
           parent_email?: string
           parent_id?: string
           parent_name?: string
-          payment_failure_reason?: string | null
           semester_label?: string
           semester_year?: number
           sent_at?: string | null
           status?: string
-          stripe_environment?: string | null
-          stripe_payment_intent_id?: string | null
-          stripe_session_id?: string | null
-          stripe_subscription_id?: string | null
           subtotal_cents?: number
           total_cents?: number
           tuition_plan?: string
@@ -662,7 +644,6 @@ export type Database = {
           id: string
           last_name: string
           phone: string
-          stripe_customer_id: string | null
           updated_at: string
         }
         Insert: {
@@ -675,7 +656,6 @@ export type Database = {
           id?: string
           last_name: string
           phone: string
-          stripe_customer_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -688,7 +668,6 @@ export type Database = {
           id?: string
           last_name?: string
           phone?: string
-          stripe_customer_id?: string | null
           updated_at?: string
         }
         Relationships: []

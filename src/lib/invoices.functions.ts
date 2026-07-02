@@ -161,37 +161,37 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
     }
   }
 
-  // 3. Recital fee — once per FAMILY per season (charge once if not already
-  // charged on any prior invoice for this parent this season).
-  if (RECITAL_FEE_CENTS > 0) {
-    const { data: priorInvoices } = await supabaseAdmin
-      .from("invoices")
-      .select("id")
-      .eq("parent_id", input.parentId)
-      .eq("semester_year", seasonYear);
-    const priorIds = (priorInvoices ?? []).map((r: any) => r.id);
-    let alreadyCharged = false;
-    if (priorIds.length) {
-      const { data: existingRecital } = await supabaseAdmin
-        .from("invoice_line_items")
-        .select("id")
-        .in("invoice_id", priorIds)
-        .eq("category", "recital_fee")
-        .limit(1);
-      alreadyCharged = (existingRecital?.length ?? 0) > 0;
-    }
-    if (!alreadyCharged) {
+  // 3. Recital fee — once per student per season (charge if not already)
+  for (const sid of uniqStudentIds) {
+    const { data: existing } = await supabaseAdmin
+      .from("student_semester_fees")
+      .select("*")
+      .eq("student_id", sid)
+      .eq("semester_year", seasonYear)
+      .maybeSingle();
+    if (!existing?.recital_fee_charged) {
+      const studentName = input.enrollments.find((e) => e.student_id === sid)?.student_name ?? "Student";
       lines.push({
-        student_id: null,
-        student_name: null,
+        student_id: sid,
+        student_name: studentName,
         class_id: null,
         category: "recital_fee",
-        description: `Recital Fee — ${input.parentName} family (${seasonLabel(seasonYear)})`,
+        description: `Recital Fee — ${studentName}`,
         months: null,
         unit_amount_cents: RECITAL_FEE_CENTS,
         amount_cents: RECITAL_FEE_CENTS,
         sort_order: sort++,
       });
+      await supabaseAdmin
+        .from("student_semester_fees")
+        .upsert({
+          student_id: sid,
+          semester_year: seasonYear,
+          registration_fee_charged: existing?.registration_fee_charged ?? true,
+          registration_fee_paid: existing?.registration_fee_paid ?? false,
+          recital_fee_charged: true,
+          recital_fee_paid: false,
+        }, { onConflict: "student_id,semester_year" });
     }
   }
 

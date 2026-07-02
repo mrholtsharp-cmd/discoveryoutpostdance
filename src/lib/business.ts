@@ -29,8 +29,7 @@ export const INVOICE_FOOTER =
 
 // Once-per-student-per-semester and once-per-student fees.
 export const REGISTRATION_FEE_CENTS = 1000; // $10
-// Default recital fee is $0. Admins can raise it per-invoice later.
-export const RECITAL_FEE_CENTS = 0;
+export const RECITAL_FEE_CENTS = 1000; // $10
 
 // Cash discount per enrolled class when parent selects "Pay Cash at the Studio".
 export const CASH_DISCOUNT_PER_CLASS_CENTS = 500;

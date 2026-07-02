@@ -539,9 +539,8 @@ function Step4Review({
 }: { state: WizardState; classes: ClassRow[]; totals: { monthly: number; semester: number; count: number }; setNotes: (v: string) => void }) {
   const classMap = new Map(classes.map((c) => [c.id, c]));
   const cashDiscount = state.cash_payment ? CASH_DISCOUNT_PER_CLASS_CENTS * totals.count : 0;
-  const registrationFees = REGISTRATION_FEE_CENTS * state.students.length;
-  const recitalFee = RECITAL_FEE_CENTS; // once per family
-  const totalFees = registrationFees + recitalFee;
+  const feesPerStudent = REGISTRATION_FEE_CENTS + RECITAL_FEE_CENTS;
+  const totalFees = feesPerStudent * state.students.length;
   const tuitionTotal = state.tuition_plan === "semester"
     ? totals.semester
     : (state.invoice_preference === "semester" ? totals.monthly * SEMESTER_MONTHS : totals.monthly);
@@ -613,15 +612,9 @@ function Step4Review({
           <span>{centsToUSD(tuitionTotal)}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span>Registration fee ({state.students.length} student{state.students.length === 1 ? "" : "s"})</span>
-          <span>{centsToUSD(registrationFees)}</span>
+          <span>Registration + Recital fees ({state.students.length} student{state.students.length === 1 ? "" : "s"})</span>
+          <span>{centsToUSD(totalFees)}</span>
         </div>
-        {recitalFee > 0 && (
-          <div className="flex justify-between text-sm">
-            <span>Recital fee (once per family)</span>
-            <span>{centsToUSD(recitalFee)}</span>
-          </div>
-        )}
         {cashDiscount > 0 && (
           <div className="flex justify-between text-sm text-emerald-700">
             <span>Cash discount ($5 × {totals.count} class{totals.count === 1 ? "" : "es"})</span>

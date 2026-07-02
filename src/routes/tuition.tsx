@@ -57,7 +57,7 @@ function TuitionPage() {
         <h2 className="mt-12 font-display text-2xl">Fees & Discounts</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <PriceCard name="Registration Fee" price={centsToUSD(REGISTRATION_FEE_CENTS)} desc="Once per student per semester." />
-          <PriceCard name="Recital Fee" price={centsToUSD(RECITAL_FEE_CENTS)} desc="Once per family." />
+          <PriceCard name="Recital Fee" price={centsToUSD(RECITAL_FEE_CENTS)} desc="Once per student." />
           <PriceCard name="Cash Discount" price={`−${centsToUSD(CASH_DISCOUNT_PER_CLASS_CENTS)} / class`} desc={`When you select "Pay Cash at the Studio" during registration.`} />
         </div>
 
@@ -67,7 +67,7 @@ function TuitionPage() {
             <li>Registration automatically generates an invoice with all applicable fees.</li>
             <li>Choose monthly or semester tuition and whether to receive monthly or one semester invoice.</li>
             <li>Pay by cash (at the studio), Cash App ($DOPAdance), Venmo (@DOPADance), PayPal ({BUSINESS.email}), or Stripe when a link is provided.</li>
-            <li>Registration fee is charged once per student per semester; recital fee is charged once per family.</li>
+            <li>Registration fee is charged once per student per semester; recital fee is charged once per student.</li>
           </ul>
         </Card>
       </section>
