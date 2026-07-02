@@ -1,5 +1,24 @@
 import { BUSINESS, PAYMENT_METHODS, PAYMENT_INSTRUCTIONS, INVOICE_FOOTER, centsToUSD } from "./business";
 import type { InvoiceWithLines, InvoiceLineItem } from "./invoices.functions";
+import logoAsset from "@/assets/logo.png.asset.json";
+
+const LOGO_URL: string =
+  typeof window !== "undefined" ? new URL(logoAsset.url, window.location.origin).toString() : logoAsset.url;
+const DEFAULT_INSTRUCTOR = "Melissa";
+
+async function fetchLogoDataUrl(): Promise<string | null> {
+  try {
+    const res = await fetch(LOGO_URL);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(typeof r.result === "string" ? r.result : null);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
 
 function fmtDate(iso: string): string {
   return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString(undefined, {
@@ -38,6 +57,7 @@ export function invoiceAsText(inv: InvoiceWithLines): string {
   lines.push("");
   lines.push(`Bill To: ${inv.parent_name} <${inv.parent_email}>`);
   lines.push(`Semester: ${inv.semester_label}`);
+  lines.push(`Instructor: ${DEFAULT_INSTRUCTOR}`);
   lines.push(`Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}`);
   lines.push(`Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}`);
   lines.push("");
