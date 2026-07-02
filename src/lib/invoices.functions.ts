@@ -163,6 +163,8 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
 
   // 3. Recital fee — once per student per season (charge if not already)
   for (const sid of uniqStudentIds) {
+    // Skip when default fee is $0 — admin can add it manually later.
+    if (RECITAL_FEE_CENTS <= 0) break;
     const { data: existing } = await supabaseAdmin
       .from("student_semester_fees")
       .select("*")
