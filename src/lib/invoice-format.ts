@@ -250,8 +250,12 @@ export function printInvoice(inv: InvoiceWithLines): void {
     <style>body{font-family:Arial,sans-serif;color:#111;margin:32px;} h1{margin:0;} .muted{color:#666;font-size:12px;} table{width:100%;border-collapse:collapse;margin-top:16px;} th{text-align:left;padding:6px 8px;border-bottom:2px solid #333;font-size:12px;text-transform:uppercase;} .totals td{padding:4px 8px;} .total{font-size:16px;font-weight:700;}</style>
   </head><body>
     <div style="display:flex;justify-content:space-between;">
-      <div><h1>${BUSINESS.name}</h1>
-        <div class="muted">${BUSINESS.addressLine1}<br>${BUSINESS.addressLine2}<br>${BUSINESS.phone}<br>${BUSINESS.email}<br>${BUSINESS.website}</div>
+      <div style="display:flex;gap:16px;align-items:flex-start;">
+        <img src="${LOGO_URL}" alt="${escape(BUSINESS.name)} logo" style="width:72px;height:72px;object-fit:contain;" />
+        <div>
+          <h1 style="margin:0;">${BUSINESS.name}</h1>
+          <div class="muted">${BUSINESS.addressLine1}<br>${BUSINESS.addressLine2}<br>${BUSINESS.phone}<br>${BUSINESS.email}<br>${BUSINESS.website}</div>
+        </div>
       </div>
       <div style="text-align:right;">
         <h1>INVOICE</h1>
@@ -261,7 +265,7 @@ export function printInvoice(inv: InvoiceWithLines): void {
     </div>
     <hr>
     <div><strong>Bill To</strong><br>${escape(inv.parent_name)}<br>${escape(inv.parent_email)}</div>
-    <div class="muted" style="margin-top:8px;">Semester: ${escape(inv.semester_label)} · Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"} · Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}</div>
+    <div class="muted" style="margin-top:8px;">Semester: ${escape(inv.semester_label)} · Instructor: ${DEFAULT_INSTRUCTOR} · Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"} · Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}</div>
     <table>
       <thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
