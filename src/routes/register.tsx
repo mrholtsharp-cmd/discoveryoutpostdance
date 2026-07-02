@@ -645,36 +645,56 @@ function Step4Billing({
   totals: { monthly: number; semester: number; count: number };
   setState: React.Dispatch<React.SetStateAction<WizardState>>;
 }) {
+  const monthlyPerMonth = totals.monthly;
+  const semesterTotal = totals.semester;
+  const monthlyTotal = totals.monthly * SEMESTER_MONTHS;
+  const savings = Math.max(0, monthlyTotal - semesterTotal);
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-xl">Billing Preferences</h2>
-        <p className="text-sm text-muted-foreground">Choose how you'd like to be billed. You can change this later by contacting the studio.</p>
+        <h2 className="font-display text-xl">Choose Your Tuition Plan</h2>
+        <p className="text-sm text-muted-foreground">
+          Selection required. This choice appears on your invoice, in your parent portal, and in the studio's admin dashboard.
+        </p>
       </div>
 
-      <div>
-        <Label className="text-sm font-semibold">Tuition Plan</Label>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <PlanCard
+      <fieldset>
+        <legend className="text-sm font-semibold flex items-center gap-2">
+          Tuition Plan <span className="text-destructive">*</span>
+        </legend>
+        <p className="text-xs text-muted-foreground mt-1">Required — pick one to continue.</p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <BigPlanCard
             selected={state.tuition_plan === "monthly"}
             onClick={() => setState((s) => ({ ...s, tuition_plan: "monthly" }))}
+            icon={<CalendarRange className="h-6 w-6" />}
             title="Monthly Tuition"
-            price={`${centsToUSD(totals.monthly)}/mo × ${SEMESTER_MONTHS}`}
-            desc={`Billed once per month for ${SEMESTER_MONTHS} months.`}
+            price={monthlyPerMonth > 0 ? `${centsToUSD(monthlyPerMonth)}/mo` : "Per class rate"}
+            subPrice={monthlyPerMonth > 0 ? `${centsToUSD(monthlyTotal)} total over ${SEMESTER_MONTHS} months` : `${SEMESTER_MONTHS} monthly payments`}
+            desc="Pay each month during the semester. Best if you prefer smaller recurring payments."
           />
-          <PlanCard
+          <BigPlanCard
             selected={state.tuition_plan === "semester"}
             onClick={() => setState((s) => ({ ...s, tuition_plan: "semester" }))}
+            icon={<Wallet className="h-6 w-6" />}
             title="Semester Tuition"
-            price={centsToUSD(totals.semester)}
-            desc={`One payment covering the full ${SEMESTER_MONTHS}-month semester.`}
+            price={semesterTotal > 0 ? centsToUSD(semesterTotal) : "Pay in full"}
+            subPrice={semesterTotal > 0 ? `One payment for the full ${SEMESTER_MONTHS}-month semester` : "One payment upfront"}
+            desc="Pay the whole semester at once. Simplest — one invoice, done for the season."
+            badge={savings > 0 ? `Save ${centsToUSD(savings)}` : undefined}
           />
         </div>
-      </div>
+        {state.tuition_plan === null && (
+          <p className="mt-3 text-xs text-destructive">Please choose a tuition plan to continue.</p>
+        )}
+      </fieldset>
 
-      <div>
-        <Label className="text-sm font-semibold">Invoice Preference</Label>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+      <fieldset>
+        <legend className="text-sm font-semibold flex items-center gap-2">
+          Invoice Preference <span className="text-destructive">*</span>
+        </legend>
+        <p className="text-xs text-muted-foreground mt-1">How would you like to receive invoices?</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <PlanCard
             selected={state.invoice_preference === "monthly"}
             onClick={() => setState((s) => ({ ...s, invoice_preference: "monthly" }))}
@@ -690,7 +710,10 @@ function Step4Billing({
             desc="Receive one combined invoice for the whole semester."
           />
         </div>
-      </div>
+        {state.invoice_preference === null && (
+          <p className="mt-3 text-xs text-destructive">Please choose an invoice preference to continue.</p>
+        )}
+      </fieldset>
 
       <label className="flex items-start gap-3 rounded-md border p-4 cursor-pointer hover:bg-muted/30">
         <input
@@ -712,6 +735,55 @@ function Step4Billing({
         </div>
       </label>
     </div>
+  );
+}
+
+function BigPlanCard({
+  selected, onClick, icon, title, price, subPrice, desc, badge,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  price: string;
+  subPrice?: string;
+  desc: string;
+  badge?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`relative text-left rounded-xl border-2 p-5 transition-all ${
+        selected
+          ? "border-primary bg-primary/5 ring-2 ring-primary/30 shadow-md"
+          : "border-border hover:border-primary/50 hover:bg-muted/30"
+      }`}
+    >
+      {badge && (
+        <span className="absolute -top-2 right-4 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+          {badge}
+        </span>
+      )}
+      <div className="flex items-start justify-between gap-3">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+          {icon}
+        </div>
+        <div
+          aria-hidden
+          className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+            selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
+          }`}
+        >
+          {selected && <Check className="h-3 w-3" />}
+        </div>
+      </div>
+      <h3 className="mt-3 font-display text-lg">{title}</h3>
+      <p className="mt-1 font-display text-2xl font-semibold">{price}</p>
+      {subPrice && <p className="text-xs text-muted-foreground">{subPrice}</p>}
+      <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
+    </button>
   );
 }
 
