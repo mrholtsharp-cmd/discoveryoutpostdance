@@ -142,7 +142,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
         // and we're operating via service role here. Atomicity via row-lock on class.
         const { data: cls } = await supabaseAdmin
           .from("class_schedule")
-          .select("capacity, class_name")
+          .select("capacity, class_name, monthly_tuition_cents, semester_tuition_cents")
           .eq("id", classId)
           .single();
         const { count } = await supabaseAdmin
@@ -194,12 +194,47 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
             selected_class_id: classId,
             program: cls?.class_name ?? null,
             medical_notes: s.medical_notes ?? null,
+            tuition_plan: data.tuition_plan,
+            invoice_preference: data.invoice_preference,
+            cash_payment: data.cash_payment,
           })
           .select("id")
           .single();
         if (regRow) registrationIds.push(regRow.id);
+
+        // Track enrollment for invoice building (only enrolled, not waitlisted)
+        if (placement === "enrolled") {
+          enrolledForInvoice.push({
+            student_id: stu.id,
+            student_name: `${s.first_name} ${s.last_name}`.trim(),
+            class_id: classId,
+            class_name: cls?.class_name ?? "Class",
+            monthly_cents: cls?.monthly_tuition_cents ?? 0,
+            semester_cents: cls?.semester_tuition_cents ?? (cls?.monthly_tuition_cents ?? 0) * 4,
+          });
+        }
       }
     }
 
-    return { ok: true, parent_id: parentId, placements: results, registration_ids: registrationIds };
+    // Auto-generate invoice for enrolled classes.
+    let invoice: { invoiceId: string; invoiceNumber: string } | null = null;
+    if (enrolledForInvoice.length > 0) {
+      try {
+        const { buildInvoiceForRegistration } = await import("./invoices.functions");
+        invoice = await buildInvoiceForRegistration({
+          parentId,
+          parentName: `${data.parent.first_name} ${data.parent.last_name}`.trim(),
+          parentEmail: data.parent.email.toLowerCase(),
+          tuitionPlan: data.tuition_plan,
+          invoicePreference: data.invoice_preference,
+          cashPayment: data.cash_payment,
+          notes: data.notes ?? null,
+          enrollments: enrolledForInvoice,
+        });
+      } catch (e) {
+        console.error("Invoice generation failed:", e);
+      }
+    }
+
+    return { ok: true, parent_id: parentId, placements: results, registration_ids: registrationIds, invoice };
   });
