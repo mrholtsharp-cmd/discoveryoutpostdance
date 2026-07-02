@@ -14,6 +14,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ScheduleRouteImport } from './routes/schedule'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AttireGuideRouteImport } from './routes/attire-guide'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -60,6 +61,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -188,6 +194,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/attire-guide': typeof AttireGuideRoute
   '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
@@ -216,6 +223,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/attire-guide': typeof AttireGuideRoute
   '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
@@ -245,6 +253,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/attire-guide': typeof AttireGuideRoute
   '/auth': typeof AuthRoute
+  '/contact': typeof ContactRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/schedule': typeof ScheduleRoute
@@ -275,6 +284,7 @@ export interface FileRouteTypes {
     | '/'
     | '/attire-guide'
     | '/auth'
+    | '/contact'
     | '/register'
     | '/reset-password'
     | '/schedule'
@@ -303,6 +313,7 @@ export interface FileRouteTypes {
     | '/'
     | '/attire-guide'
     | '/auth'
+    | '/contact'
     | '/register'
     | '/reset-password'
     | '/schedule'
@@ -331,6 +342,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/attire-guide'
     | '/auth'
+    | '/contact'
     | '/register'
     | '/reset-password'
     | '/schedule'
@@ -361,6 +373,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AttireGuideRoute: typeof AttireGuideRoute
   AuthRoute: typeof AuthRoute
+  ContactRoute: typeof ContactRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ScheduleRoute: typeof ScheduleRoute
@@ -409,6 +422,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -616,6 +636,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AttireGuideRoute: AttireGuideRoute,
   AuthRoute: AuthRoute,
+  ContactRoute: ContactRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ScheduleRoute: ScheduleRoute,
