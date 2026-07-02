@@ -4,6 +4,10 @@ import { template as paymentConfirmation } from './payment-confirmation'
 import { template as paymentFailedParent } from './payment-failed-parent'
 import { template as paymentFailedAdmin } from './payment-failed-admin'
 import { template as refundIssued } from './refund-issued'
+import { template as invoiceSent } from './invoice-sent'
+import { template as contactReply } from './contact-reply'
+import { template as contactReceived } from './contact-received'
+import { template as messageNotification } from './message-notification'
 
 export interface TemplateEntry {
   component: ComponentType<any>
@@ -28,4 +32,8 @@ export const TEMPLATES: Record<string, TemplateEntry> = {
   'payment-failed-parent': paymentFailedParent,
   'payment-failed-admin': paymentFailedAdmin,
   'refund-issued': refundIssued,
+  'invoice-sent': invoiceSent,
+  'contact-reply': contactReply,
+  'contact-received': contactReceived,
+  'message-notification': messageNotification,
 }

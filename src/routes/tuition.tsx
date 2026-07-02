@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { listTuitionItems } from "@/lib/tuition.functions";
+import { BUSINESS, REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
 
 export const Route = createFileRoute("/tuition")({
   head: () => ({
@@ -15,103 +14,75 @@ export const Route = createFileRoute("/tuition")({
   component: TuitionPage,
 });
 
-type TuitionRow = {
-  id: string;
-  kind: string;
-  name: string;
-  display_price: string;
-  description: string;
-  active: boolean;
-};
+const MONTHLY_35 = [
+  "Dance (Ages 3–5)", "Dance (Ages 5–6)", "Dance (Ages 7–10)",
+  "Dance (Ages 10–14)", "Dance (Ages 14–18)",
+];
+const MONTHLY_30 = [
+  "Junior Musical Theater Dance (Ages 8–12)",
+  "Teen Musical Theater Dance (Ages 12–18)",
+  "Boys Tap", "Women's Jazz", "Women's Tap",
+];
 
 function TuitionPage() {
-  const items = useQuery({ queryKey: ["tuition-items"], queryFn: () => listTuitionItems() });
-  const all = ((items.data ?? []) as TuitionRow[]).filter((r) => r.active);
-  const monthlyClasses = all.filter((r) => r.kind === "class_monthly");
-  const semesterClasses = all.filter((r) => r.kind === "class_semester");
-  const oneTime = all.filter((r) => r.kind === "one_time");
-
   return (
     <Layout>
       <section className="mx-auto max-w-5xl px-6 py-16">
         <h1 className="font-display text-4xl">Tuition & Fees</h1>
         <p className="mt-3 text-muted-foreground max-w-2xl">
-          Register your student, and the studio will send you an invoice for tuition and fees.
-          You don't need to pay online — after you register, submit an invoice request and we'll
-          email you a bill.
+          Choose monthly or semester tuition during registration. Your invoice is generated automatically after you enroll — no online payment required. Pay by cash, Cash App, Venmo, PayPal, or Stripe when available.
         </p>
 
         <div className="mt-6 flex gap-3 flex-wrap">
           <Button asChild className="rounded-full">
-            <Link to="/register">Register &amp; request invoice</Link>
+            <Link to="/register">Register now</Link>
           </Button>
           <Button asChild variant="outline" className="rounded-full">
             <Link to="/account">Parent portal</Link>
           </Button>
         </div>
 
-        {monthlyClasses.length > 0 && (
-          <>
-            <h2 className="mt-12 font-display text-2xl">Monthly Tuition</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {monthlyClasses.map((r) => (
-                <Card key={r.id} className="p-6 flex flex-col">
-                  <div className="flex items-baseline justify-between">
-                    <h3 className="font-display text-xl">{r.name}</h3>
-                    <span className="text-xl font-semibold">{r.display_price}</span>
-                  </div>
-                  {r.description && <p className="mt-2 text-sm text-muted-foreground flex-1">{r.description}</p>}
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
+        <h2 className="mt-12 font-display text-2xl">Monthly Tuition (4 months)</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {MONTHLY_35.map((n) => <PriceCard key={n} name={n} price="$35/mo" />)}
+          {MONTHLY_30.map((n) => <PriceCard key={n} name={n} price="$30/mo" />)}
+        </div>
 
-        {semesterClasses.length > 0 && (
-          <>
-            <h2 className="mt-12 font-display text-2xl">Semester Tuition</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              {semesterClasses.map((r) => (
-                <Card key={r.id} className="p-6 flex flex-col">
-                  <div className="flex items-baseline justify-between">
-                    <h3 className="font-display text-xl">{r.name}</h3>
-                    <span className="text-xl font-semibold">{r.display_price}</span>
-                  </div>
-                  {r.description && <p className="mt-2 text-sm text-muted-foreground flex-1">{r.description}</p>}
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
+        <h2 className="mt-12 font-display text-2xl">Semester Tuition (one payment)</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {MONTHLY_35.map((n) => <PriceCard key={n} name={n} price="$140" />)}
+          {MONTHLY_30.map((n) => <PriceCard key={n} name={n} price="$120" />)}
+        </div>
 
-        {oneTime.length > 0 && (
-          <>
-            <h2 className="mt-12 font-display text-2xl">One-time Fees</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-3">
-              {oneTime.map((r) => (
-                <Card key={r.id} className="p-6 flex flex-col">
-                  <div className="flex items-baseline justify-between">
-                    <h3 className="font-display text-lg">{r.name}</h3>
-                    <span className="text-lg font-semibold">{r.display_price}</span>
-                  </div>
-                  {r.description && <p className="mt-2 text-sm text-muted-foreground flex-1">{r.description}</p>}
-                </Card>
-              ))}
-            </div>
-          </>
-        )}
-
-        {items.isLoading && <p className="mt-6 text-sm text-muted-foreground">Loading…</p>}
+        <h2 className="mt-12 font-display text-2xl">Fees & Discounts</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <PriceCard name="Registration Fee" price={centsToUSD(REGISTRATION_FEE_CENTS)} desc="Once per student per semester." />
+          <PriceCard name="Recital Fee" price={centsToUSD(RECITAL_FEE_CENTS)} desc="Once per student." />
+          <PriceCard name="Cash Discount" price={`−${centsToUSD(CASH_DISCOUNT_PER_CLASS_CENTS)} / class`} desc={`When you select "Pay Cash at the Studio" during registration.`} />
+        </div>
 
         <Card className="mt-12 p-5 bg-muted/30">
           <h3 className="font-display text-lg">How billing works</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            After you register, the studio reviews your invoice request and emails you a bill.
-            You can pay by check, cash, or however you've arranged with the studio. No card is
-            required to complete registration.
-          </p>
+          <ul className="mt-2 text-sm text-muted-foreground space-y-1 list-disc pl-5">
+            <li>Registration automatically generates an invoice with all applicable fees.</li>
+            <li>Choose monthly or semester tuition and whether to receive monthly or one semester invoice.</li>
+            <li>Pay by cash (at the studio), Cash App ($DOPAdance), Venmo (@DOPADance), PayPal ({BUSINESS.email}), or Stripe when a link is provided.</li>
+            <li>Registration fee is charged once per student per semester; recital fee is charged once per student.</li>
+          </ul>
         </Card>
       </section>
     </Layout>
+  );
+}
+
+function PriceCard({ name, price, desc }: { name: string; price: string; desc?: string }) {
+  return (
+    <Card className="p-6 flex flex-col">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="font-display text-lg">{name}</h3>
+        <span className="text-lg font-semibold whitespace-nowrap">{price}</span>
+      </div>
+      {desc && <p className="mt-2 text-sm text-muted-foreground flex-1">{desc}</p>}
+    </Card>
   );
 }

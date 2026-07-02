@@ -12,9 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
-import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign } from "lucide-react";
+import { REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -28,7 +28,6 @@ export const Route = createFileRoute("/register")({
   component: RegisterWizard,
 });
 
-const REGISTRATION_FEE_CENTS = 1000;
 const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
 
 type StudentDraft = {
@@ -43,7 +42,7 @@ type StudentDraft = {
 };
 
 type WizardState = {
-  step: 1 | 2 | 3 | 4;
+  step: 1 | 2 | 3 | 4 | 5;
   parent: {
     first_name: string;
     last_name: string;
@@ -56,6 +55,9 @@ type WizardState = {
   };
   students: StudentDraft[];
   notes: string;
+  tuition_plan: "monthly" | "semester";
+  invoice_preference: "monthly" | "semester";
+  cash_payment: boolean;
 };
 
 const emptyStudent = (): StudentDraft => ({
@@ -71,6 +73,9 @@ const initialState: WizardState = {
   },
   students: [emptyStudent()],
   notes: "",
+  tuition_plan: "monthly",
+  invoice_preference: "monthly",
+  cash_payment: false,
 };
 
 function calcAge(dob: string): number | null {
@@ -113,7 +118,6 @@ function RegisterWizard() {
   });
 
   const submitFn = useServerFn(submitFullRegistration);
-  const invoiceFn = useServerFn(createInvoiceRequest);
 
   function setStep(step: WizardState["step"]) { setState((s) => ({ ...s, step })); }
   function updateParent<K extends keyof WizardState["parent"]>(k: K, v: WizardState["parent"][K]) {
@@ -154,10 +158,20 @@ function RegisterWizard() {
 
   const step3Valid = useMemo(() => state.students.every((s) => s.class_ids.length > 0), [state.students]);
 
-  const totalMonthly = useMemo(() => {
-    if (!classesQuery.data) return 0;
-    const map = new Map(classesQuery.data.map((c) => [c.id, c.monthly_tuition_cents ?? 0]));
-    return state.students.reduce((sum, s) => sum + s.class_ids.reduce((a, id) => a + (map.get(id) ?? 0), 0), 0);
+  const totals = useMemo(() => {
+    if (!classesQuery.data) return { monthly: 0, semester: 0, count: 0 };
+    const map = new Map(classesQuery.data.map((c) => [c.id, c]));
+    let monthly = 0, semester = 0, count = 0;
+    for (const s of state.students) {
+      for (const id of s.class_ids) {
+        const c = map.get(id);
+        if (!c) continue;
+        monthly += c.monthly_tuition_cents ?? 0;
+        semester += (c as any).semester_tuition_cents ?? (c.monthly_tuition_cents ?? 0) * SEMESTER_MONTHS;
+        count++;
+      }
+    }
+    return { monthly, semester, count };
   }, [state.students, classesQuery.data]);
 
   async function handleSubmitAll() {
@@ -207,40 +221,18 @@ function RegisterWizard() {
             shirt_size: s.shirt_size || null,
             class_ids: s.class_ids,
           })),
+          tuition_plan: state.tuition_plan,
+          invoice_preference: state.invoice_preference,
+          cash_payment: state.cash_payment,
+          notes: state.notes || null,
         },
       });
 
       const waitlisted = result.placements.filter((p) => p.placement === "waitlisted").length;
       const enrolled = result.placements.filter((p) => p.placement === "enrolled").length;
 
-      // Build invoice request items from enrollments (waitlisted classes aren't billed).
-      const classesData = classesQuery.data ?? [];
-      const classMap = new Map(classesData.map((c) => [c.id, c]));
-      const studentNameByClassId = new Map<string, string>();
-      for (const s of state.students) {
-        for (const cid of s.class_ids) {
-          studentNameByClassId.set(cid, `${s.first_name} ${s.last_name}`.trim());
-        }
-      }
-      const items: { classLabel: string; monthlyAmountCents: number; studentName?: string }[] = [];
-      items.push({ classLabel: "Season Registration Fee", monthlyAmountCents: REGISTRATION_FEE_CENTS });
-      for (const p of result.placements) {
-        if (p.placement !== "enrolled") continue;
-        const c = classMap.get(p.class_id);
-        if (!c || !c.monthly_tuition_cents) continue;
-        items.push({
-          classLabel: c.class_name,
-          monthlyAmountCents: c.monthly_tuition_cents,
-          studentName: studentNameByClassId.get(p.class_id),
-        });
-      }
-
-      if (items.length > 1) {
-        const inv = await invoiceFn({ data: { items, notes: state.notes || undefined } });
-        if ("error" in inv) throw new Error(inv.error);
-      }
-
-      toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted. Invoice request sent.`);
+      const invNum = (result as any).invoice?.invoiceNumber;
+      toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted.${invNum ? ` Invoice ${invNum} created.` : ""}`);
       sessionStorage.removeItem(WIZARD_STORAGE_KEY);
       navigate({ to: "/account" });
     } catch (e) {
@@ -275,10 +267,17 @@ function RegisterWizard() {
             />
           )}
           {state.step === 4 && (
+            <Step4Billing
+              state={state}
+              totals={totals}
+              setState={setState}
+            />
+          )}
+          {state.step === 5 && (
             <Step4Review
               state={state}
               classes={classesQuery.data ?? []}
-              totalMonthly={totalMonthly}
+              totals={totals}
               setNotes={(v) => setState((s) => ({ ...s, notes: v }))}
             />
           )}
@@ -293,8 +292,8 @@ function RegisterWizard() {
             >
               <ChevronLeft className="mr-1 h-4 w-4" /> Back
             </Button>
-            <div className="text-xs text-muted-foreground">Step {state.step} of 4</div>
-            {state.step < 4 ? (
+            <div className="text-xs text-muted-foreground">Step {state.step} of 5</div>
+            {state.step < 5 ? (
               <Button
                 type="button"
                 onClick={() => setStep((state.step + 1) as WizardState["step"])}
@@ -308,7 +307,7 @@ function RegisterWizard() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmitAll} disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit & Request Invoice"}
+                {submitting ? "Submitting…" : "Submit & Generate Invoice"}
               </Button>
             )}
           </div>
@@ -322,15 +321,16 @@ function RegisterWizard() {
   );
 }
 
-function WizardProgress({ current }: { current: 1 | 2 | 3 | 4 }) {
+function WizardProgress({ current }: { current: 1 | 2 | 3 | 4 | 5 }) {
   const steps = [
     { n: 1, label: "Parent", icon: Users },
     { n: 2, label: "Students", icon: GraduationCap },
     { n: 3, label: "Classes", icon: CalendarDays },
-    { n: 4, label: "Review", icon: ClipboardCheck },
+    { n: 4, label: "Billing", icon: DollarSign },
+    { n: 5, label: "Review", icon: ClipboardCheck },
   ] as const;
   return (
-    <ol className="mt-6 grid grid-cols-4 gap-2 sm:gap-4">
+    <ol className="mt-6 grid grid-cols-5 gap-2 sm:gap-4">
       {steps.map(({ n, label, icon: Icon }) => {
         const active = n === current;
         const done = n < current;
@@ -526,14 +526,22 @@ function Step3Classes({
 }
 
 function Step4Review({
-  state, classes, totalMonthly, setNotes,
-}: { state: WizardState; classes: ClassRow[]; totalMonthly: number; setNotes: (v: string) => void }) {
+  state, classes, totals, setNotes,
+}: { state: WizardState; classes: ClassRow[]; totals: { monthly: number; semester: number; count: number }; setNotes: (v: string) => void }) {
   const classMap = new Map(classes.map((c) => [c.id, c]));
+  const cashDiscount = state.cash_payment ? CASH_DISCOUNT_PER_CLASS_CENTS * totals.count : 0;
+  const semesterYear = new Date().getFullYear() + (new Date().getMonth() >= 11 ? 1 : 0);
+  const feesPerStudent = REGISTRATION_FEE_CENTS + RECITAL_FEE_CENTS;
+  const totalFees = feesPerStudent * state.students.length;
+  const tuitionTotal = state.tuition_plan === "semester"
+    ? totals.semester
+    : (state.invoice_preference === "semester" ? totals.monthly * SEMESTER_MONTHS : totals.monthly);
+  const totalDue = tuitionTotal + totalFees - cashDiscount;
   return (
     <div className="space-y-6">
       <div>
         <h2 className="font-display text-xl">Review &amp; Submit</h2>
-        <p className="text-sm text-muted-foreground">Confirm everything looks right, then submit your invoice request.</p>
+        <p className="text-sm text-muted-foreground">Confirm everything looks right, then submit. An invoice will be generated automatically.</p>
       </div>
 
       <section>
@@ -568,39 +576,147 @@ function Step4Review({
 
       <section className="rounded-md border bg-muted/30 p-4">
         <div className="flex justify-between text-sm">
-          <span>Registration fee (one-time)</span>
-          <span>${(REGISTRATION_FEE_CENTS/100).toFixed(2)}</span>
+          <span>Tuition Plan</span>
+          <span className="font-medium">{state.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span>Monthly tuition total</span>
-          <span>${(totalMonthly/100).toFixed(2)}/mo</span>
+          <span>Invoice Preference</span>
+          <span className="font-medium">{state.invoice_preference === "monthly" ? "Monthly invoices" : "One semester invoice"}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Cash payment</span>
+          <span className="font-medium">{state.cash_payment ? "Yes (Pay Cash at the Studio)" : "No"}</span>
+        </div>
+        <div className="mt-2 border-t pt-2 flex justify-between text-sm">
+          <span>Tuition ({state.tuition_plan === "semester" || state.invoice_preference === "semester" ? "semester total" : "per month"})</span>
+          <span>{centsToUSD(tuitionTotal)}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span>Registration + Recital fees ({state.students.length} student{state.students.length === 1 ? "" : "s"})</span>
+          <span>{centsToUSD(totalFees)}</span>
+        </div>
+        {cashDiscount > 0 && (
+          <div className="flex justify-between text-sm text-emerald-700">
+            <span>Cash discount ($5 × {totals.count} class{totals.count === 1 ? "" : "es"})</span>
+            <span>−{centsToUSD(cashDiscount)}</span>
+          </div>
+        )}
+        <div className="mt-2 border-t pt-2 flex justify-between font-semibold">
+          <span>Estimated total due</span>
+          <span>{centsToUSD(totalDue)}</span>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          These amounts are estimates. The studio will confirm the final invoice amount.
+          Registration fees only apply if this student hasn't been charged yet this semester. The studio confirms final amounts.
         </p>
       </section>
 
       <section className="rounded-md border p-4">
         <div className="flex items-center gap-2">
           <Mail className="h-4 w-4 text-primary" />
-          <h3 className="font-semibold">Invoice request</h3>
+          <h3 className="font-semibold">Notes for the studio</h3>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Submitting this form completes your registration. The studio will email you an invoice
-          for tuition and fees. No payment is required now.
-        </p>
         <div className="mt-3">
-          <Label className="text-sm">Notes for the studio (optional)</Label>
+          <Label className="text-sm">Anything the studio should know? (optional)</Label>
           <Textarea
             className="mt-1"
             rows={3}
             value={state.notes}
-            placeholder="Anything the studio should know about billing, discounts, or payment method?"
+            placeholder="Questions, notes, special circumstances…"
             onChange={(e) => setNotes(e.target.value)}
           />
         </div>
       </section>
     </div>
+  );
+}
+
+function Step4Billing({
+  state, totals, setState,
+}: {
+  state: WizardState;
+  totals: { monthly: number; semester: number; count: number };
+  setState: React.Dispatch<React.SetStateAction<WizardState>>;
+}) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-xl">Billing Preferences</h2>
+        <p className="text-sm text-muted-foreground">Choose how you'd like to be billed. You can change this later by contacting the studio.</p>
+      </div>
+
+      <div>
+        <Label className="text-sm font-semibold">Tuition Plan</Label>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <PlanCard
+            selected={state.tuition_plan === "monthly"}
+            onClick={() => setState((s) => ({ ...s, tuition_plan: "monthly" }))}
+            title="Monthly Tuition"
+            price={`${centsToUSD(totals.monthly)}/mo × ${SEMESTER_MONTHS}`}
+            desc={`Billed once per month for ${SEMESTER_MONTHS} months.`}
+          />
+          <PlanCard
+            selected={state.tuition_plan === "semester"}
+            onClick={() => setState((s) => ({ ...s, tuition_plan: "semester" }))}
+            title="Semester Tuition"
+            price={centsToUSD(totals.semester)}
+            desc={`One payment covering the full ${SEMESTER_MONTHS}-month semester.`}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-sm font-semibold">Invoice Preference</Label>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <PlanCard
+            selected={state.invoice_preference === "monthly"}
+            onClick={() => setState((s) => ({ ...s, invoice_preference: "monthly" }))}
+            title="Monthly Invoices"
+            price=""
+            desc="Receive a separate invoice each month."
+          />
+          <PlanCard
+            selected={state.invoice_preference === "semester"}
+            onClick={() => setState((s) => ({ ...s, invoice_preference: "semester" }))}
+            title="One Semester Invoice"
+            price=""
+            desc="Receive one combined invoice for the whole semester."
+          />
+        </div>
+      </div>
+
+      <label className="flex items-start gap-3 rounded-md border p-4 cursor-pointer hover:bg-muted/30">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={state.cash_payment}
+          onChange={(e) => setState((s) => ({ ...s, cash_payment: e.target.checked }))}
+        />
+        <div>
+          <p className="font-semibold text-sm">Pay Cash at the Studio</p>
+          <p className="text-xs text-muted-foreground">
+            Get a ${(CASH_DISCOUNT_PER_CLASS_CENTS / 100).toFixed(2)} discount per enrolled class. Your invoice will be marked "Payment Pending – Cash" until received.
+          </p>
+          {state.cash_payment && totals.count > 0 && (
+            <p className="text-xs text-emerald-700 mt-1">
+              You'll save {centsToUSD(CASH_DISCOUNT_PER_CLASS_CENTS * totals.count)}.
+            </p>
+          )}
+        </div>
+      </label>
+    </div>
+  );
+}
+
+function PlanCard({ selected, onClick, title, price, desc }: { selected: boolean; onClick: () => void; title: string; price: string; desc: string }) {
+  return (
+    <button type="button" onClick={onClick} className={`text-left rounded-md border p-4 transition-colors ${selected ? "border-primary bg-primary/5" : "border-border hover:bg-muted/30"}`}>
+      <div className="flex items-center justify-between">
+        <span className="font-semibold">{title}</span>
+        <div className={`h-4 w-4 rounded-full border ${selected ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+      </div>
+      {price && <p className="mt-1 font-display text-lg">{price}</p>}
+      <p className="mt-1 text-xs text-muted-foreground">{desc}</p>
+    </button>
   );
 }
 

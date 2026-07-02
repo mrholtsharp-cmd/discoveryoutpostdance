@@ -1,21 +1,24 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Shield } from "lucide-react";
 import { Logo } from "./Logo";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { isCurrentUserAdmin } from "@/lib/admin-v2.functions";
 
 const nav = [
   { to: "/", label: "Home" },
   { to: "/schedule", label: "Schedule" },
   { to: "/tuition", label: "Tuition" },
   { to: "/register", label: "Register" },
+  { to: "/contact", label: "Contact" },
 ];
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
     onScroll();
@@ -23,8 +26,16 @@ export function SiteHeader() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSignedIn(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    async function refresh(hasSession: boolean) {
+      setSignedIn(hasSession);
+      if (hasSession) {
+        try { setIsAdmin(await isCurrentUserAdmin()); } catch { setIsAdmin(false); }
+      } else {
+        setIsAdmin(false);
+      }
+    }
+    supabase.auth.getSession().then(({ data }) => refresh(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => refresh(!!session));
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -57,6 +68,11 @@ export function SiteHeader() {
               {n.label}
             </Link>
           ))}
+          {isAdmin && (
+            <Button asChild size="sm" variant="ghost" className="rounded-full px-3 text-primary">
+              <Link to="/admin"><Shield className="h-4 w-4" /> Admin</Link>
+            </Button>
+          )}
           {signedIn ? (
             <Button asChild size="sm" variant="outline" className="rounded-full px-5">
               <Link to="/account">My Account</Link>
@@ -67,7 +83,7 @@ export function SiteHeader() {
             </Button>
           )}
           <Button asChild size="sm" className="rounded-full px-5">
-            <Link to="/tuition">Enroll</Link>
+            <Link to="/register">Enroll</Link>
           </Button>
         </nav>
         <button
@@ -91,6 +107,11 @@ export function SiteHeader() {
                 {n.label}
               </Link>
             ))}
+            {isAdmin && (
+              <Link to="/admin" onClick={() => setOpen(false)} className="text-base font-display text-primary">
+                Admin Dashboard
+              </Link>
+            )}
             <Button asChild className="rounded-full mt-2">
               <Link to="/register" onClick={() => setOpen(false)}>Register Now</Link>
             </Button>

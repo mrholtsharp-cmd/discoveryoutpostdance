@@ -26,6 +26,10 @@ const submitSchema = z.object({
     phone: z.string().trim().min(7).max(30),
   }),
   students: z.array(studentSchema).min(1).max(10),
+  tuition_plan: z.enum(["monthly", "semester"]).default("monthly"),
+  invoice_preference: z.enum(["monthly", "semester"]).default("monthly"),
+  cash_payment: z.boolean().default(false),
+  notes: z.string().max(2000).optional().nullable(),
 });
 
 export const listClassesWithAvailability = createServerFn({ method: "GET" })
@@ -38,7 +42,7 @@ export const listClassesWithAvailability = createServerFn({ method: "GET" })
     );
     const { data: classes, error } = await supa
       .from("class_schedule")
-      .select("id, day, class_name, time, sort_order, capacity, description, age_group, instructor, monthly_tuition_cents, stripe_monthly_lookup_key, stripe_semester_lookup_key")
+      .select("id, day, class_name, time, sort_order, capacity, description, age_group, instructor, monthly_tuition_cents, semester_tuition_cents, stripe_monthly_lookup_key, stripe_semester_lookup_key")
       .order("day").order("sort_order");
     if (error) throw new Error(error.message);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -109,6 +113,10 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
     // Insert students + enrollments via SECURITY DEFINER fn (which also handles waitlist)
     const results: Array<{ student_id: string; class_id: string; placement: string; wait_position: number }> = [];
     const registrationIds: string[] = [];
+    const enrolledForInvoice: Array<{
+      student_id: string; student_name: string; class_id: string; class_name: string;
+      monthly_cents: number; semester_cents: number;
+    }> = [];
     for (const s of data.students) {
       const { data: stu, error: sErr } = await supabaseAdmin
         .from("students")
@@ -138,7 +146,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
         // and we're operating via service role here. Atomicity via row-lock on class.
         const { data: cls } = await supabaseAdmin
           .from("class_schedule")
-          .select("capacity, class_name")
+          .select("capacity, class_name, monthly_tuition_cents, semester_tuition_cents")
           .eq("id", classId)
           .single();
         const { count } = await supabaseAdmin
@@ -190,12 +198,47 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
             selected_class_id: classId,
             program: cls?.class_name ?? null,
             medical_notes: s.medical_notes ?? null,
+            tuition_plan: data.tuition_plan,
+            invoice_preference: data.invoice_preference,
+            cash_payment: data.cash_payment,
           })
           .select("id")
           .single();
         if (regRow) registrationIds.push(regRow.id);
+
+        // Track enrollment for invoice building (only enrolled, not waitlisted)
+        if (placement === "enrolled") {
+          enrolledForInvoice.push({
+            student_id: stu.id,
+            student_name: `${s.first_name} ${s.last_name}`.trim(),
+            class_id: classId,
+            class_name: cls?.class_name ?? "Class",
+            monthly_cents: cls?.monthly_tuition_cents ?? 0,
+            semester_cents: cls?.semester_tuition_cents ?? (cls?.monthly_tuition_cents ?? 0) * 4,
+          });
+        }
       }
     }
 
-    return { ok: true, parent_id: parentId, placements: results, registration_ids: registrationIds };
+    // Auto-generate invoice for enrolled classes.
+    let invoice: { invoiceId: string; invoiceNumber: string } | null = null;
+    if (enrolledForInvoice.length > 0) {
+      try {
+        const { buildInvoiceForRegistration } = await import("./invoices.functions");
+        invoice = await buildInvoiceForRegistration({
+          parentId,
+          parentName: `${data.parent.first_name} ${data.parent.last_name}`.trim(),
+          parentEmail: data.parent.email.toLowerCase(),
+          tuitionPlan: data.tuition_plan,
+          invoicePreference: data.invoice_preference,
+          cashPayment: data.cash_payment,
+          notes: data.notes ?? null,
+          enrollments: enrolledForInvoice,
+        });
+      } catch (e) {
+        console.error("Invoice generation failed:", e);
+      }
+    }
+
+    return { ok: true, parent_id: parentId, placements: results, registration_ids: registrationIds, invoice };
   });
