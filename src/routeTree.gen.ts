@@ -32,6 +32,7 @@ import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminStudentsRouteImport } from './routes/_authenticated/admin.students'
 import { Route as AuthenticatedAdminRegistrationsRouteImport } from './routes/_authenticated/admin.registrations'
 import { Route as AuthenticatedAdminParentsRouteImport } from './routes/_authenticated/admin.parents'
+import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authenticated/admin.messages'
 import { Route as AuthenticatedAdminInvoicesRouteImport } from './routes/_authenticated/admin.invoices'
 import { Route as AuthenticatedAdminInvoiceRequestsRouteImport } from './routes/_authenticated/admin.invoice-requests'
 import { Route as AuthenticatedAdminClassesRouteImport } from './routes/_authenticated/admin.classes'
@@ -160,6 +161,12 @@ const AuthenticatedAdminParentsRoute =
     path: '/parents',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminMessagesRoute =
+  AuthenticatedAdminMessagesRouteImport.update({
+    id: '/messages',
+    path: '/messages',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminInvoicesRoute =
   AuthenticatedAdminInvoicesRouteImport.update({
     id: '/invoices',
@@ -221,6 +228,7 @@ export interface FileRoutesByFullPath {
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
+  '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
@@ -251,6 +259,7 @@ export interface FileRoutesByTo {
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
+  '/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/admin/students': typeof AuthenticatedAdminStudentsRoute
@@ -284,6 +293,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/_authenticated/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/_authenticated/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
+  '/_authenticated/admin/messages': typeof AuthenticatedAdminMessagesRoute
   '/_authenticated/admin/parents': typeof AuthenticatedAdminParentsRoute
   '/_authenticated/admin/registrations': typeof AuthenticatedAdminRegistrationsRoute
   '/_authenticated/admin/students': typeof AuthenticatedAdminStudentsRoute
@@ -317,6 +327,7 @@ export interface FileRouteTypes {
     | '/admin/classes'
     | '/admin/invoice-requests'
     | '/admin/invoices'
+    | '/admin/messages'
     | '/admin/parents'
     | '/admin/registrations'
     | '/admin/students'
@@ -347,6 +358,7 @@ export interface FileRouteTypes {
     | '/admin/classes'
     | '/admin/invoice-requests'
     | '/admin/invoices'
+    | '/admin/messages'
     | '/admin/parents'
     | '/admin/registrations'
     | '/admin/students'
@@ -379,6 +391,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/classes'
     | '/_authenticated/admin/invoice-requests'
     | '/_authenticated/admin/invoices'
+    | '/_authenticated/admin/messages'
     | '/_authenticated/admin/parents'
     | '/_authenticated/admin/registrations'
     | '/_authenticated/admin/students'
@@ -575,6 +588,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminParentsRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/messages': {
+      id: '/_authenticated/admin/messages'
+      path: '/messages'
+      fullPath: '/admin/messages'
+      preLoaderRoute: typeof AuthenticatedAdminMessagesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/invoices': {
       id: '/_authenticated/admin/invoices'
       path: '/invoices'
@@ -632,6 +652,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminClassesRoute: typeof AuthenticatedAdminClassesRoute
   AuthenticatedAdminInvoiceRequestsRoute: typeof AuthenticatedAdminInvoiceRequestsRoute
   AuthenticatedAdminInvoicesRoute: typeof AuthenticatedAdminInvoicesRoute
+  AuthenticatedAdminMessagesRoute: typeof AuthenticatedAdminMessagesRoute
   AuthenticatedAdminParentsRoute: typeof AuthenticatedAdminParentsRoute
   AuthenticatedAdminRegistrationsRoute: typeof AuthenticatedAdminRegistrationsRoute
   AuthenticatedAdminStudentsRoute: typeof AuthenticatedAdminStudentsRoute
@@ -647,6 +668,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminInvoiceRequestsRoute:
     AuthenticatedAdminInvoiceRequestsRoute,
   AuthenticatedAdminInvoicesRoute: AuthenticatedAdminInvoicesRoute,
+  AuthenticatedAdminMessagesRoute: AuthenticatedAdminMessagesRoute,
   AuthenticatedAdminParentsRoute: AuthenticatedAdminParentsRoute,
   AuthenticatedAdminRegistrationsRoute: AuthenticatedAdminRegistrationsRoute,
   AuthenticatedAdminStudentsRoute: AuthenticatedAdminStudentsRoute,
