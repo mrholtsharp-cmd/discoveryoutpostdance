@@ -308,18 +308,21 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
 
 function StudentsTab({ snap, classes, onChange }: { snap: Snapshot; classes: ClassRow[]; onChange: () => void }) {
   const [editing, setEditing] = useState<any | null>(null);
-  const [joinFor, setJoinFor] = useState<any | null>(null);
-  const [creating, setCreating] = useState(false);
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="font-display text-lg">Students</h2>
-        <Button size="sm" className="rounded-full" onClick={() => setCreating(true)}>Add student</Button>
+        <Button size="sm" className="rounded-full" asChild>
+          <Link to="/register">Register a student</Link>
+        </Button>
       </div>
 
       {snap.students.length === 0 ? (
-        <Card className="p-5"><p className="text-sm text-muted-foreground">No students yet. Add one to enroll in classes.</p></Card>
+        <Card className="p-5 space-y-2">
+          <p className="text-sm text-muted-foreground">No students yet. Complete registration to add a student, choose classes, and receive an invoice.</p>
+          <Button size="sm" className="rounded-full" asChild><Link to="/register">Start registration</Link></Button>
+        </Card>
       ) : (
         <div className="space-y-3">
           {snap.students.map((s: any) => (
@@ -332,7 +335,6 @@ function StudentsTab({ snap, classes, onChange }: { snap: Snapshot; classes: Cla
                 </div>
                 <div className="flex gap-2 shrink-0">
                   <Button size="sm" variant="outline" onClick={() => setEditing(s)}>Edit</Button>
-                  <Button size="sm" onClick={() => setJoinFor(s)}>Join class</Button>
                 </div>
               </div>
 
@@ -370,9 +372,7 @@ function StudentsTab({ snap, classes, onChange }: { snap: Snapshot; classes: Cla
         </div>
       )}
 
-      <StudentDialog open={creating} onClose={() => setCreating(false)} onSaved={onChange} />
       <StudentDialog open={!!editing} student={editing} onClose={() => setEditing(null)} onSaved={onChange} />
-      <JoinClassDialog open={!!joinFor} student={joinFor} classes={classes} onClose={() => setJoinFor(null)} onSaved={onChange} />
     </div>
   );
 }
