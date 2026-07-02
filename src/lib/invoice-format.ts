@@ -119,18 +119,28 @@ export async function downloadInvoicePdf(inv: InvoiceWithLines): Promise<void> {
   const M = 48;
   let y = M;
 
-  // Header
+  // Header logo (top-left)
+  const logoDataUrl = await fetchLogoDataUrl();
+  const logoSize = 64;
+  const headerTextX = logoDataUrl ? M + logoSize + 12 : M;
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", M, y - 4, logoSize, logoSize);
+    } catch { /* ignore image failures */ }
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text(BUSINESS.name, M, y);
+  doc.text(BUSINESS.name, headerTextX, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   y += 16;
-  doc.text(BUSINESS.addressLine1, M, y); y += 12;
-  doc.text(BUSINESS.addressLine2, M, y); y += 12;
-  doc.text(BUSINESS.phone, M, y); y += 12;
-  doc.text(BUSINESS.email, M, y); y += 12;
-  doc.text(BUSINESS.website, M, y);
+  doc.text(BUSINESS.addressLine1, headerTextX, y); y += 12;
+  doc.text(BUSINESS.addressLine2, headerTextX, y); y += 12;
+  doc.text(BUSINESS.phone, headerTextX, y); y += 12;
+  doc.text(BUSINESS.email, headerTextX, y); y += 12;
+  doc.text(BUSINESS.website, headerTextX, y);
+  // Ensure header cursor sits below logo before divider
+  if (logoDataUrl) y = Math.max(y, M + logoSize - 8);
 
   // Invoice meta (right side)
   doc.setFont("helvetica", "bold");
@@ -157,6 +167,7 @@ export async function downloadInvoicePdf(inv: InvoiceWithLines): Promise<void> {
   doc.text(inv.parent_name, M, y); y += 12;
   doc.text(inv.parent_email, M, y); y += 12;
   doc.text(`Semester: ${inv.semester_label}`, M, y); y += 12;
+  doc.text(`Instructor: ${DEFAULT_INSTRUCTOR}`, M, y); y += 12;
   doc.text(`Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}`, M, y); y += 12;
   doc.text(`Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}`, M, y);
 
