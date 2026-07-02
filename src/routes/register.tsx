@@ -539,7 +539,6 @@ function Step4Review({
 }: { state: WizardState; classes: ClassRow[]; totals: { monthly: number; semester: number; count: number }; setNotes: (v: string) => void }) {
   const classMap = new Map(classes.map((c) => [c.id, c]));
   const cashDiscount = state.cash_payment ? CASH_DISCOUNT_PER_CLASS_CENTS * totals.count : 0;
-  const semesterYear = new Date().getFullYear() + (new Date().getMonth() >= 11 ? 1 : 0);
   const feesPerStudent = REGISTRATION_FEE_CENTS + RECITAL_FEE_CENTS;
   const totalFees = feesPerStudent * state.students.length;
   const tuitionTotal = state.tuition_plan === "semester"
