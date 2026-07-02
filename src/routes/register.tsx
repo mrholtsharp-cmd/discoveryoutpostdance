@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign, CalendarRange, Wallet } from "lucide-react";
 import { REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
 
 export const Route = createFileRoute("/register")({
@@ -55,8 +55,8 @@ type WizardState = {
   };
   students: StudentDraft[];
   notes: string;
-  tuition_plan: "monthly" | "semester";
-  invoice_preference: "monthly" | "semester";
+  tuition_plan: "monthly" | "semester" | null;
+  invoice_preference: "monthly" | "semester" | null;
   cash_payment: boolean;
 };
 
@@ -73,8 +73,8 @@ const initialState: WizardState = {
   },
   students: [emptyStudent()],
   notes: "",
-  tuition_plan: "monthly",
-  invoice_preference: "monthly",
+  tuition_plan: null,
+  invoice_preference: null,
   cash_payment: false,
 };
 
@@ -158,6 +158,11 @@ function RegisterWizard() {
 
   const step3Valid = useMemo(() => state.students.every((s) => s.class_ids.length > 0), [state.students]);
 
+  const step4Valid = useMemo(
+    () => state.tuition_plan !== null && state.invoice_preference !== null,
+    [state.tuition_plan, state.invoice_preference],
+  );
+
   const totals = useMemo(() => {
     if (!classesQuery.data) return { monthly: 0, semester: 0, count: 0 };
     const map = new Map(classesQuery.data.map((c) => [c.id, c]));
@@ -178,6 +183,9 @@ function RegisterWizard() {
     if (submitting) return;
     setSubmitting(true);
     try {
+      if (!state.tuition_plan || !state.invoice_preference) {
+        throw new Error("Please choose a tuition plan and invoice preference before submitting.");
+      }
       const email = state.parent.email.trim().toLowerCase();
       const password = state.parent.password;
       const { data: existingSession } = await supabase.auth.getSession();
@@ -221,8 +229,8 @@ function RegisterWizard() {
             shirt_size: s.shirt_size || null,
             class_ids: s.class_ids,
           })),
-          tuition_plan: state.tuition_plan,
-          invoice_preference: state.invoice_preference,
+          tuition_plan: state.tuition_plan!,
+          invoice_preference: state.invoice_preference!,
           cash_payment: state.cash_payment,
           notes: state.notes || null,
         },
@@ -300,7 +308,8 @@ function RegisterWizard() {
                 disabled={
                   (state.step === 1 && !step1Valid) ||
                   (state.step === 2 && !step2Valid) ||
-                  (state.step === 3 && !step3Valid)
+                  (state.step === 3 && !step3Valid) ||
+                  (state.step === 4 && !step4Valid)
                 }
               >
                 Continue <ChevronRight className="ml-1 h-4 w-4" />
