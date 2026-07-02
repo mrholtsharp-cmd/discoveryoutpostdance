@@ -335,6 +335,7 @@ function RegistrationsAdminPage() {
                   <th className="py-2 pr-4">Level</th>
                   <th className="py-2 pr-4">Age</th>
                   <th className="py-2 pr-4">Trial</th>
+                  <th className="py-2 pr-4">Tuition</th>
                   <th className="py-2 pr-4">Status</th>
                 </tr>
               </thead>
@@ -366,6 +367,24 @@ function RegistrationsAdminPage() {
                         <td className="py-2 pr-4">{r.is_trial ? "Yes" : ""}</td>
                         <td className="py-2 pr-4">
                           {(() => {
+                            const tp = (r as any).tuition_plan as string | null | undefined;
+                            if (!tp) return <span className="text-muted-foreground text-xs">—</span>;
+                            const isMonthly = tp === "monthly";
+                            return (
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${
+                                  isMonthly
+                                    ? "bg-sky-100 text-sky-900 border-sky-200"
+                                    : "bg-violet-100 text-violet-900 border-violet-200"
+                                }`}
+                              >
+                                {isMonthly ? "Monthly" : "Semester"}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {(() => {
                             const b = approvalBadge((r as any).approval_status);
                             return (
                               <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${b.className}`}>
@@ -378,7 +397,7 @@ function RegistrationsAdminPage() {
                       {isOpen && (
                         <tr className="bg-muted/30">
                           <td></td>
-                          <td colSpan={9} className="py-3 pr-4">
+                          <td colSpan={10} className="py-3 pr-4">
                             <div className="grid sm:grid-cols-2 gap-4 text-sm">
                               <div>
                                 <div className="text-xs uppercase tracking-wide text-muted-foreground">Emergency contact</div>

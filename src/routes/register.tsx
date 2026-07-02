@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign, CalendarRange, Wallet } from "lucide-react";
 import { REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
 
 export const Route = createFileRoute("/register")({
@@ -55,8 +55,8 @@ type WizardState = {
   };
   students: StudentDraft[];
   notes: string;
-  tuition_plan: "monthly" | "semester";
-  invoice_preference: "monthly" | "semester";
+  tuition_plan: "monthly" | "semester" | null;
+  invoice_preference: "monthly" | "semester" | null;
   cash_payment: boolean;
 };
 
@@ -73,8 +73,8 @@ const initialState: WizardState = {
   },
   students: [emptyStudent()],
   notes: "",
-  tuition_plan: "monthly",
-  invoice_preference: "monthly",
+  tuition_plan: null,
+  invoice_preference: null,
   cash_payment: false,
 };
 
@@ -158,6 +158,11 @@ function RegisterWizard() {
 
   const step3Valid = useMemo(() => state.students.every((s) => s.class_ids.length > 0), [state.students]);
 
+  const step4Valid = useMemo(
+    () => state.tuition_plan !== null && state.invoice_preference !== null,
+    [state.tuition_plan, state.invoice_preference],
+  );
+
   const totals = useMemo(() => {
     if (!classesQuery.data) return { monthly: 0, semester: 0, count: 0 };
     const map = new Map(classesQuery.data.map((c) => [c.id, c]));
@@ -178,6 +183,9 @@ function RegisterWizard() {
     if (submitting) return;
     setSubmitting(true);
     try {
+      if (!state.tuition_plan || !state.invoice_preference) {
+        throw new Error("Please choose a tuition plan and invoice preference before submitting.");
+      }
       const email = state.parent.email.trim().toLowerCase();
       const password = state.parent.password;
       const { data: existingSession } = await supabase.auth.getSession();
@@ -221,8 +229,8 @@ function RegisterWizard() {
             shirt_size: s.shirt_size || null,
             class_ids: s.class_ids,
           })),
-          tuition_plan: state.tuition_plan,
-          invoice_preference: state.invoice_preference,
+          tuition_plan: state.tuition_plan!,
+          invoice_preference: state.invoice_preference!,
           cash_payment: state.cash_payment,
           notes: state.notes || null,
         },
@@ -300,7 +308,8 @@ function RegisterWizard() {
                 disabled={
                   (state.step === 1 && !step1Valid) ||
                   (state.step === 2 && !step2Valid) ||
-                  (state.step === 3 && !step3Valid)
+                  (state.step === 3 && !step3Valid) ||
+                  (state.step === 4 && !step4Valid)
                 }
               >
                 Continue <ChevronRight className="ml-1 h-4 w-4" />
@@ -530,7 +539,6 @@ function Step4Review({
 }: { state: WizardState; classes: ClassRow[]; totals: { monthly: number; semester: number; count: number }; setNotes: (v: string) => void }) {
   const classMap = new Map(classes.map((c) => [c.id, c]));
   const cashDiscount = state.cash_payment ? CASH_DISCOUNT_PER_CLASS_CENTS * totals.count : 0;
-  const semesterYear = new Date().getFullYear() + (new Date().getMonth() >= 11 ? 1 : 0);
   const feesPerStudent = REGISTRATION_FEE_CENTS + RECITAL_FEE_CENTS;
   const totalFees = feesPerStudent * state.students.length;
   const tuitionTotal = state.tuition_plan === "semester"
@@ -577,11 +585,23 @@ function Step4Review({
       <section className="rounded-md border bg-muted/30 p-4">
         <div className="flex justify-between text-sm">
           <span>Tuition Plan</span>
-          <span className="font-medium">{state.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}</span>
+          <span className="font-medium">
+            {state.tuition_plan === "monthly"
+              ? "Monthly Tuition"
+              : state.tuition_plan === "semester"
+              ? "Semester Tuition (pay in full)"
+              : "— not selected —"}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Invoice Preference</span>
-          <span className="font-medium">{state.invoice_preference === "monthly" ? "Monthly invoices" : "One semester invoice"}</span>
+          <span className="font-medium">
+            {state.invoice_preference === "monthly"
+              ? "Monthly invoices"
+              : state.invoice_preference === "semester"
+              ? "One semester invoice"
+              : "— not selected —"}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Cash payment</span>
@@ -637,36 +657,56 @@ function Step4Billing({
   totals: { monthly: number; semester: number; count: number };
   setState: React.Dispatch<React.SetStateAction<WizardState>>;
 }) {
+  const monthlyPerMonth = totals.monthly;
+  const semesterTotal = totals.semester;
+  const monthlyTotal = totals.monthly * SEMESTER_MONTHS;
+  const savings = Math.max(0, monthlyTotal - semesterTotal);
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-xl">Billing Preferences</h2>
-        <p className="text-sm text-muted-foreground">Choose how you'd like to be billed. You can change this later by contacting the studio.</p>
+        <h2 className="font-display text-xl">Choose Your Tuition Plan</h2>
+        <p className="text-sm text-muted-foreground">
+          Selection required. This choice appears on your invoice, in your parent portal, and in the studio's admin dashboard.
+        </p>
       </div>
 
-      <div>
-        <Label className="text-sm font-semibold">Tuition Plan</Label>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
-          <PlanCard
+      <fieldset>
+        <legend className="text-sm font-semibold flex items-center gap-2">
+          Tuition Plan <span className="text-destructive">*</span>
+        </legend>
+        <p className="text-xs text-muted-foreground mt-1">Required — pick one to continue.</p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <BigPlanCard
             selected={state.tuition_plan === "monthly"}
             onClick={() => setState((s) => ({ ...s, tuition_plan: "monthly" }))}
+            icon={<CalendarRange className="h-6 w-6" />}
             title="Monthly Tuition"
-            price={`${centsToUSD(totals.monthly)}/mo × ${SEMESTER_MONTHS}`}
-            desc={`Billed once per month for ${SEMESTER_MONTHS} months.`}
+            price={monthlyPerMonth > 0 ? `${centsToUSD(monthlyPerMonth)}/mo` : "Per class rate"}
+            subPrice={monthlyPerMonth > 0 ? `${centsToUSD(monthlyTotal)} total over ${SEMESTER_MONTHS} months` : `${SEMESTER_MONTHS} monthly payments`}
+            desc="Pay each month during the semester. Best if you prefer smaller recurring payments."
           />
-          <PlanCard
+          <BigPlanCard
             selected={state.tuition_plan === "semester"}
             onClick={() => setState((s) => ({ ...s, tuition_plan: "semester" }))}
+            icon={<Wallet className="h-6 w-6" />}
             title="Semester Tuition"
-            price={centsToUSD(totals.semester)}
-            desc={`One payment covering the full ${SEMESTER_MONTHS}-month semester.`}
+            price={semesterTotal > 0 ? centsToUSD(semesterTotal) : "Pay in full"}
+            subPrice={semesterTotal > 0 ? `One payment for the full ${SEMESTER_MONTHS}-month semester` : "One payment upfront"}
+            desc="Pay the whole semester at once. Simplest — one invoice, done for the season."
+            badge={savings > 0 ? `Save ${centsToUSD(savings)}` : undefined}
           />
         </div>
-      </div>
+        {state.tuition_plan === null && (
+          <p className="mt-3 text-xs text-destructive">Please choose a tuition plan to continue.</p>
+        )}
+      </fieldset>
 
-      <div>
-        <Label className="text-sm font-semibold">Invoice Preference</Label>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+      <fieldset>
+        <legend className="text-sm font-semibold flex items-center gap-2">
+          Invoice Preference <span className="text-destructive">*</span>
+        </legend>
+        <p className="text-xs text-muted-foreground mt-1">How would you like to receive invoices?</p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <PlanCard
             selected={state.invoice_preference === "monthly"}
             onClick={() => setState((s) => ({ ...s, invoice_preference: "monthly" }))}
@@ -682,7 +722,10 @@ function Step4Billing({
             desc="Receive one combined invoice for the whole semester."
           />
         </div>
-      </div>
+        {state.invoice_preference === null && (
+          <p className="mt-3 text-xs text-destructive">Please choose an invoice preference to continue.</p>
+        )}
+      </fieldset>
 
       <label className="flex items-start gap-3 rounded-md border p-4 cursor-pointer hover:bg-muted/30">
         <input
@@ -704,6 +747,55 @@ function Step4Billing({
         </div>
       </label>
     </div>
+  );
+}
+
+function BigPlanCard({
+  selected, onClick, icon, title, price, subPrice, desc, badge,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  price: string;
+  subPrice?: string;
+  desc: string;
+  badge?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`relative text-left rounded-xl border-2 p-5 transition-all ${
+        selected
+          ? "border-primary bg-primary/5 ring-2 ring-primary/30 shadow-md"
+          : "border-border hover:border-primary/50 hover:bg-muted/30"
+      }`}
+    >
+      {badge && (
+        <span className="absolute -top-2 right-4 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-white">
+          {badge}
+        </span>
+      )}
+      <div className="flex items-start justify-between gap-3">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-lg ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+          {icon}
+        </div>
+        <div
+          aria-hidden
+          className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+            selected ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground/40"
+          }`}
+        >
+          {selected && <Check className="h-3 w-3" />}
+        </div>
+      </div>
+      <h3 className="mt-3 font-display text-lg">{title}</h3>
+      <p className="mt-1 font-display text-2xl font-semibold">{price}</p>
+      {subPrice && <p className="text-xs text-muted-foreground">{subPrice}</p>}
+      <p className="mt-2 text-sm text-muted-foreground">{desc}</p>
+    </button>
   );
 }
 
