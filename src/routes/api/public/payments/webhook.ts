@@ -1,31 +1,27 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { createClient } from '@supabase/supabase-js';
 import { type StripeEnv, verifyWebhook } from '@/lib/stripe.server';
 
-let _sb: ReturnType<typeof createClient> | null = null;
-function sb() {
-  if (!_sb) {
-    _sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-  }
-  return _sb;
+async function sb() {
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  return supabaseAdmin;
 }
 
 async function markInvoicePaid(invoiceId: string, env: StripeEnv, patch: Record<string, any>) {
-  await sb()
+  await (await sb())
     .from('invoices')
     .update({
       status: 'paid',
       paid_at: new Date().toISOString(),
       stripe_environment: env,
       ...patch,
-    })
+    } as never)
     .eq('id', invoiceId);
 }
 
 async function markInvoiceFailed(invoiceId: string, reason: string, env: StripeEnv) {
-  await sb()
+  await (await sb())
     .from('invoices')
-    .update({ payment_failure_reason: reason, stripe_environment: env })
+    .update({ payment_failure_reason: reason, stripe_environment: env } as never)
     .eq('id', invoiceId);
 }
 
@@ -43,7 +39,7 @@ async function handleCheckoutCompleted(session: any, env: StripeEnv) {
   if (session.mode === 'payment' && session.payment_status === 'paid') {
     await markInvoicePaid(invoiceId, env, patch);
   } else {
-    await sb().from('invoices').update({ ...patch, stripe_environment: env }).eq('id', invoiceId);
+    await (await sb()).from('invoices').update({ ...patch, stripe_environment: env } as never).eq('id', invoiceId);
   }
 }
 
@@ -66,9 +62,9 @@ async function handleInvoicePaid(inv: any, env: StripeEnv) {
   // Subscription renewal — link back via subscription id
   const subId = typeof inv.subscription === 'string' ? inv.subscription : inv.subscription?.id;
   if (!subId) return;
-  await sb()
+  await (await sb())
     .from('invoices')
-    .update({ status: 'paid', paid_at: new Date().toISOString(), paid_via: 'subscription', stripe_environment: env })
+    .update({ status: 'paid', paid_at: new Date().toISOString(), paid_via: 'subscription', stripe_environment: env } as never)
     .eq('stripe_subscription_id', subId);
 }
 
