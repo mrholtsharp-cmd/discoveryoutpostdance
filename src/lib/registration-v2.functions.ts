@@ -26,6 +26,10 @@ const submitSchema = z.object({
     phone: z.string().trim().min(7).max(30),
   }),
   students: z.array(studentSchema).min(1).max(10),
+  tuition_plan: z.enum(["monthly", "semester"]).default("monthly"),
+  invoice_preference: z.enum(["monthly", "semester"]).default("monthly"),
+  cash_payment: z.boolean().default(false),
+  notes: z.string().max(2000).optional().nullable(),
 });
 
 export const listClassesWithAvailability = createServerFn({ method: "GET" })
@@ -38,7 +42,7 @@ export const listClassesWithAvailability = createServerFn({ method: "GET" })
     );
     const { data: classes, error } = await supa
       .from("class_schedule")
-      .select("id, day, class_name, time, sort_order, capacity, description, age_group, instructor, monthly_tuition_cents, stripe_monthly_lookup_key, stripe_semester_lookup_key")
+      .select("id, day, class_name, time, sort_order, capacity, description, age_group, instructor, monthly_tuition_cents, semester_tuition_cents, stripe_monthly_lookup_key, stripe_semester_lookup_key")
       .order("day").order("sort_order");
     if (error) throw new Error(error.message);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
