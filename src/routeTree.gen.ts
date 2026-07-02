@@ -23,6 +23,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedAccountRouteImport } from './routes/_authenticated/account'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as LovableEmailSuppressionRouteImport } from './routes/lovable/email/suppression'
+import { Route as ApiPublicContactRouteImport } from './routes/api/public/contact'
 import { Route as AuthenticatedAdminWaitlistsRouteImport } from './routes/_authenticated/admin.waitlists'
 import { Route as AuthenticatedAdminTuitionRouteImport } from './routes/_authenticated/admin.tuition'
 import { Route as AuthenticatedAdminTeachersRouteImport } from './routes/_authenticated/admin.teachers'
@@ -103,6 +104,11 @@ const AuthenticatedAdminIndexRoute = AuthenticatedAdminIndexRouteImport.update({
 const LovableEmailSuppressionRoute = LovableEmailSuppressionRouteImport.update({
   id: '/lovable/email/suppression',
   path: '/lovable/email/suppression',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicContactRoute = ApiPublicContactRouteImport.update({
+  id: '/api/public/contact',
+  path: '/api/public/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAdminWaitlistsRoute =
@@ -199,6 +205,7 @@ export interface FileRoutesByFullPath {
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
   '/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -225,6 +232,7 @@ export interface FileRoutesByTo {
   '/admin/teachers': typeof AuthenticatedAdminTeachersRoute
   '/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -254,6 +262,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/teachers': typeof AuthenticatedAdminTeachersRoute
   '/_authenticated/admin/tuition': typeof AuthenticatedAdminTuitionRoute
   '/_authenticated/admin/waitlists': typeof AuthenticatedAdminWaitlistsRoute
+  '/api/public/contact': typeof ApiPublicContactRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -283,6 +292,7 @@ export interface FileRouteTypes {
     | '/admin/teachers'
     | '/admin/tuition'
     | '/admin/waitlists'
+    | '/api/public/contact'
     | '/lovable/email/suppression'
     | '/admin/'
     | '/lovable/email/queue/process'
@@ -309,6 +319,7 @@ export interface FileRouteTypes {
     | '/admin/teachers'
     | '/admin/tuition'
     | '/admin/waitlists'
+    | '/api/public/contact'
     | '/lovable/email/suppression'
     | '/admin'
     | '/lovable/email/queue/process'
@@ -337,6 +348,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/teachers'
     | '/_authenticated/admin/tuition'
     | '/_authenticated/admin/waitlists'
+    | '/api/public/contact'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
     | '/lovable/email/queue/process'
@@ -355,6 +367,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TuitionRoute: typeof TuitionRoute
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
+  ApiPublicContactRoute: typeof ApiPublicContactRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -459,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/lovable/email/suppression'
       fullPath: '/lovable/email/suppression'
       preLoaderRoute: typeof LovableEmailSuppressionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/contact': {
+      id: '/api/public/contact'
+      path: '/api/public/contact'
+      fullPath: '/api/public/contact'
+      preLoaderRoute: typeof ApiPublicContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/admin/waitlists': {
@@ -602,6 +622,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TuitionRoute: TuitionRoute,
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
+  ApiPublicContactRoute: ApiPublicContactRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
