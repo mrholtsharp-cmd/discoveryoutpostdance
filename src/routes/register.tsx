@@ -321,7 +321,7 @@ function RegisterWizard() {
   );
 }
 
-function WizardProgress({ current }: { current: 1 | 2 | 3 | 4 }) {
+function WizardProgress({ current }: { current: 1 | 2 | 3 | 4 | 5 }) {
   const steps = [
     { n: 1, label: "Parent", icon: Users },
     { n: 2, label: "Students", icon: GraduationCap },
