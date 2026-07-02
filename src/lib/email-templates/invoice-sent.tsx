@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {
-  Body, Container, Head, Heading, Hr, Html, Preview, Section, Text,
+  Body, Container, Head, Heading, Hr, Html, Img, Preview, Section, Text,
 } from '@react-email/components'
 import type { TemplateEntry } from './registry'
 
@@ -70,10 +70,29 @@ const Email = (props: Props) => {
       <Preview>Invoice {invoice_number} — {money(total_cents)} due {due_date}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>{business.name}</Heading>
-          <Text style={{ ...val, color: '#6b7280' }}>
-            {business.addressLine1} · {business.addressLine2} · {business.phone}
-          </Text>
+          <Section style={{ marginBottom: '8px' }}>
+            <table role="presentation" width="100%" style={{ width: '100%' }}>
+              <tbody>
+                <tr>
+                  <td style={{ verticalAlign: 'top', width: '72px', paddingRight: '12px' }}>
+                    <Img
+                      src="https://discoveryoutpost.dance/__l5e/assets-v1/1a608a06-e393-4555-ac56-837c9a6d8276/logo.png"
+                      alt={`${business.name} logo`}
+                      width="64"
+                      height="64"
+                      style={{ display: 'block', borderRadius: '6px' }}
+                    />
+                  </td>
+                  <td style={{ verticalAlign: 'top' }}>
+                    <Heading style={h1}>{business.name}</Heading>
+                    <Text style={{ ...val, color: '#6b7280', margin: 0 }}>
+                      {business.addressLine1} · {business.addressLine2} · {business.phone}
+                    </Text>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </Section>
 
           <Hr style={{ borderColor: '#e5e7eb', margin: '16px 0' }} />
 
