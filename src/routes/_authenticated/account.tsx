@@ -83,10 +83,15 @@ function AccountPage() {
             </h1>
             {snap.email && <p className="text-xs sm:text-sm text-muted-foreground truncate">{snap.email}</p>}
           </div>
-          <Button variant="outline" size="sm" className="shrink-0 rounded-full"
-            onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}>
-            Sign out
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" className="rounded-full" asChild>
+              <Link to="/messages">Messages</Link>
+            </Button>
+            <Button variant="outline" size="sm" className="rounded-full"
+              onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}>
+              Sign out
+            </Button>
+          </div>
         </header>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
