@@ -113,6 +113,10 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
     // Insert students + enrollments via SECURITY DEFINER fn (which also handles waitlist)
     const results: Array<{ student_id: string; class_id: string; placement: string; wait_position: number }> = [];
     const registrationIds: string[] = [];
+    const enrolledForInvoice: Array<{
+      student_id: string; student_name: string; class_id: string; class_name: string;
+      monthly_cents: number; semester_cents: number;
+    }> = [];
     for (const s of data.students) {
       const { data: stu, error: sErr } = await supabaseAdmin
         .from("students")
