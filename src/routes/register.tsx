@@ -12,9 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { listClassesWithAvailability, submitFullRegistration } from "@/lib/registration-v2.functions";
-import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import { toast } from "sonner";
-import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign } from "lucide-react";
+import { REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -28,7 +28,6 @@ export const Route = createFileRoute("/register")({
   component: RegisterWizard,
 });
 
-const REGISTRATION_FEE_CENTS = 1000;
 const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
 
 type StudentDraft = {
@@ -43,7 +42,7 @@ type StudentDraft = {
 };
 
 type WizardState = {
-  step: 1 | 2 | 3 | 4;
+  step: 1 | 2 | 3 | 4 | 5;
   parent: {
     first_name: string;
     last_name: string;
@@ -56,6 +55,9 @@ type WizardState = {
   };
   students: StudentDraft[];
   notes: string;
+  tuition_plan: "monthly" | "semester";
+  invoice_preference: "monthly" | "semester";
+  cash_payment: boolean;
 };
 
 const emptyStudent = (): StudentDraft => ({
@@ -71,6 +73,9 @@ const initialState: WizardState = {
   },
   students: [emptyStudent()],
   notes: "",
+  tuition_plan: "monthly",
+  invoice_preference: "monthly",
+  cash_payment: false,
 };
 
 function calcAge(dob: string): number | null {
@@ -113,7 +118,6 @@ function RegisterWizard() {
   });
 
   const submitFn = useServerFn(submitFullRegistration);
-  const invoiceFn = useServerFn(createInvoiceRequest);
 
   function setStep(step: WizardState["step"]) { setState((s) => ({ ...s, step })); }
   function updateParent<K extends keyof WizardState["parent"]>(k: K, v: WizardState["parent"][K]) {
@@ -154,10 +158,20 @@ function RegisterWizard() {
 
   const step3Valid = useMemo(() => state.students.every((s) => s.class_ids.length > 0), [state.students]);
 
-  const totalMonthly = useMemo(() => {
-    if (!classesQuery.data) return 0;
-    const map = new Map(classesQuery.data.map((c) => [c.id, c.monthly_tuition_cents ?? 0]));
-    return state.students.reduce((sum, s) => sum + s.class_ids.reduce((a, id) => a + (map.get(id) ?? 0), 0), 0);
+  const totals = useMemo(() => {
+    if (!classesQuery.data) return { monthly: 0, semester: 0, count: 0 };
+    const map = new Map(classesQuery.data.map((c) => [c.id, c]));
+    let monthly = 0, semester = 0, count = 0;
+    for (const s of state.students) {
+      for (const id of s.class_ids) {
+        const c = map.get(id);
+        if (!c) continue;
+        monthly += c.monthly_tuition_cents ?? 0;
+        semester += (c as any).semester_tuition_cents ?? (c.monthly_tuition_cents ?? 0) * SEMESTER_MONTHS;
+        count++;
+      }
+    }
+    return { monthly, semester, count };
   }, [state.students, classesQuery.data]);
 
   async function handleSubmitAll() {
@@ -207,40 +221,18 @@ function RegisterWizard() {
             shirt_size: s.shirt_size || null,
             class_ids: s.class_ids,
           })),
+          tuition_plan: state.tuition_plan,
+          invoice_preference: state.invoice_preference,
+          cash_payment: state.cash_payment,
+          notes: state.notes || null,
         },
       });
 
       const waitlisted = result.placements.filter((p) => p.placement === "waitlisted").length;
       const enrolled = result.placements.filter((p) => p.placement === "enrolled").length;
 
-      // Build invoice request items from enrollments (waitlisted classes aren't billed).
-      const classesData = classesQuery.data ?? [];
-      const classMap = new Map(classesData.map((c) => [c.id, c]));
-      const studentNameByClassId = new Map<string, string>();
-      for (const s of state.students) {
-        for (const cid of s.class_ids) {
-          studentNameByClassId.set(cid, `${s.first_name} ${s.last_name}`.trim());
-        }
-      }
-      const items: { classLabel: string; monthlyAmountCents: number; studentName?: string }[] = [];
-      items.push({ classLabel: "Season Registration Fee", monthlyAmountCents: REGISTRATION_FEE_CENTS });
-      for (const p of result.placements) {
-        if (p.placement !== "enrolled") continue;
-        const c = classMap.get(p.class_id);
-        if (!c || !c.monthly_tuition_cents) continue;
-        items.push({
-          classLabel: c.class_name,
-          monthlyAmountCents: c.monthly_tuition_cents,
-          studentName: studentNameByClassId.get(p.class_id),
-        });
-      }
-
-      if (items.length > 1) {
-        const inv = await invoiceFn({ data: { items, notes: state.notes || undefined } });
-        if ("error" in inv) throw new Error(inv.error);
-      }
-
-      toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted. Invoice request sent.`);
+      const invNum = (result as any).invoice?.invoiceNumber;
+      toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted.${invNum ? ` Invoice ${invNum} created.` : ""}`);
       sessionStorage.removeItem(WIZARD_STORAGE_KEY);
       navigate({ to: "/account" });
     } catch (e) {
@@ -275,10 +267,17 @@ function RegisterWizard() {
             />
           )}
           {state.step === 4 && (
+            <Step4Billing
+              state={state}
+              totals={totals}
+              setState={setState}
+            />
+          )}
+          {state.step === 5 && (
             <Step4Review
               state={state}
               classes={classesQuery.data ?? []}
-              totalMonthly={totalMonthly}
+              totals={totals}
               setNotes={(v) => setState((s) => ({ ...s, notes: v }))}
             />
           )}
@@ -293,8 +292,8 @@ function RegisterWizard() {
             >
               <ChevronLeft className="mr-1 h-4 w-4" /> Back
             </Button>
-            <div className="text-xs text-muted-foreground">Step {state.step} of 4</div>
-            {state.step < 4 ? (
+            <div className="text-xs text-muted-foreground">Step {state.step} of 5</div>
+            {state.step < 5 ? (
               <Button
                 type="button"
                 onClick={() => setStep((state.step + 1) as WizardState["step"])}
@@ -308,7 +307,7 @@ function RegisterWizard() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmitAll} disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit & Request Invoice"}
+                {submitting ? "Submitting…" : "Submit & Generate Invoice"}
               </Button>
             )}
           </div>
@@ -327,10 +326,11 @@ function WizardProgress({ current }: { current: 1 | 2 | 3 | 4 }) {
     { n: 1, label: "Parent", icon: Users },
     { n: 2, label: "Students", icon: GraduationCap },
     { n: 3, label: "Classes", icon: CalendarDays },
-    { n: 4, label: "Review", icon: ClipboardCheck },
+    { n: 4, label: "Billing", icon: DollarSign },
+    { n: 5, label: "Review", icon: ClipboardCheck },
   ] as const;
   return (
-    <ol className="mt-6 grid grid-cols-4 gap-2 sm:gap-4">
+    <ol className="mt-6 grid grid-cols-5 gap-2 sm:gap-4">
       {steps.map(({ n, label, icon: Icon }) => {
         const active = n === current;
         const done = n < current;
