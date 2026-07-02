@@ -585,11 +585,23 @@ function Step4Review({
       <section className="rounded-md border bg-muted/30 p-4">
         <div className="flex justify-between text-sm">
           <span>Tuition Plan</span>
-          <span className="font-medium">{state.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}</span>
+          <span className="font-medium">
+            {state.tuition_plan === "monthly"
+              ? "Monthly Tuition"
+              : state.tuition_plan === "semester"
+              ? "Semester Tuition (pay in full)"
+              : "— not selected —"}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Invoice Preference</span>
-          <span className="font-medium">{state.invoice_preference === "monthly" ? "Monthly invoices" : "One semester invoice"}</span>
+          <span className="font-medium">
+            {state.invoice_preference === "monthly"
+              ? "Monthly invoices"
+              : state.invoice_preference === "semester"
+              ? "One semester invoice"
+              : "— not selected —"}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Cash payment</span>
