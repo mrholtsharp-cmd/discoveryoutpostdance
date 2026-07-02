@@ -35,11 +35,12 @@ export const getMyPortalSnapshot = createServerFn({ method: "GET" })
         students: [],
         emergency_contacts: [],
         invoice_requests: [],
+        invoices: [],
         email,
       };
     }
 
-    const [studentsRes, ecRes, invRes] = await Promise.all([
+    const [studentsRes, ecRes, invRes, invoicesRes] = await Promise.all([
       supabase
         .from("students")
         .select("*")
@@ -53,6 +54,11 @@ export const getMyPortalSnapshot = createServerFn({ method: "GET" })
       supabase
         .from("invoice_requests")
         .select("*")
+        .eq("parent_id", parent.id)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("invoices")
+        .select("id, invoice_number, total_cents, status, tuition_plan, invoice_date, due_date, paid_at, semester_label, stripe_subscription_id")
         .eq("parent_id", parent.id)
         .order("created_at", { ascending: false }),
     ]);
@@ -88,6 +94,7 @@ export const getMyPortalSnapshot = createServerFn({ method: "GET" })
       })),
       emergency_contacts: ecRes.data ?? [],
       invoice_requests: invRes.data ?? [],
+      invoices: invoicesRes.data ?? [],
     };
   });
 
