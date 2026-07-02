@@ -1,5 +1,24 @@
 import { BUSINESS, PAYMENT_METHODS, PAYMENT_INSTRUCTIONS, INVOICE_FOOTER, centsToUSD } from "./business";
 import type { InvoiceWithLines, InvoiceLineItem } from "./invoices.functions";
+import logoAsset from "@/assets/logo.png.asset.json";
+
+const LOGO_URL: string =
+  typeof window !== "undefined" ? new URL(logoAsset.url, window.location.origin).toString() : logoAsset.url;
+const DEFAULT_INSTRUCTOR = "Melissa";
+
+async function fetchLogoDataUrl(): Promise<string | null> {
+  try {
+    const res = await fetch(LOGO_URL);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return await new Promise((resolve) => {
+      const r = new FileReader();
+      r.onload = () => resolve(typeof r.result === "string" ? r.result : null);
+      r.onerror = () => resolve(null);
+      r.readAsDataURL(blob);
+    });
+  } catch { return null; }
+}
 
 function fmtDate(iso: string): string {
   return new Date(iso + (iso.length === 10 ? "T00:00:00" : "")).toLocaleDateString(undefined, {
@@ -38,6 +57,7 @@ export function invoiceAsText(inv: InvoiceWithLines): string {
   lines.push("");
   lines.push(`Bill To: ${inv.parent_name} <${inv.parent_email}>`);
   lines.push(`Semester: ${inv.semester_label}`);
+  lines.push(`Instructor: ${DEFAULT_INSTRUCTOR}`);
   lines.push(`Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}`);
   lines.push(`Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}`);
   lines.push("");
@@ -99,18 +119,28 @@ export async function downloadInvoicePdf(inv: InvoiceWithLines): Promise<void> {
   const M = 48;
   let y = M;
 
-  // Header
+  // Header logo (top-left)
+  const logoDataUrl = await fetchLogoDataUrl();
+  const logoSize = 64;
+  const headerTextX = logoDataUrl ? M + logoSize + 12 : M;
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", M, y - 4, logoSize, logoSize);
+    } catch { /* ignore image failures */ }
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
-  doc.text(BUSINESS.name, M, y);
+  doc.text(BUSINESS.name, headerTextX, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   y += 16;
-  doc.text(BUSINESS.addressLine1, M, y); y += 12;
-  doc.text(BUSINESS.addressLine2, M, y); y += 12;
-  doc.text(BUSINESS.phone, M, y); y += 12;
-  doc.text(BUSINESS.email, M, y); y += 12;
-  doc.text(BUSINESS.website, M, y);
+  doc.text(BUSINESS.addressLine1, headerTextX, y); y += 12;
+  doc.text(BUSINESS.addressLine2, headerTextX, y); y += 12;
+  doc.text(BUSINESS.phone, headerTextX, y); y += 12;
+  doc.text(BUSINESS.email, headerTextX, y); y += 12;
+  doc.text(BUSINESS.website, headerTextX, y);
+  // Ensure header cursor sits below logo before divider
+  if (logoDataUrl) y = Math.max(y, M + logoSize - 8);
 
   // Invoice meta (right side)
   doc.setFont("helvetica", "bold");
@@ -137,6 +167,7 @@ export async function downloadInvoicePdf(inv: InvoiceWithLines): Promise<void> {
   doc.text(inv.parent_name, M, y); y += 12;
   doc.text(inv.parent_email, M, y); y += 12;
   doc.text(`Semester: ${inv.semester_label}`, M, y); y += 12;
+  doc.text(`Instructor: ${DEFAULT_INSTRUCTOR}`, M, y); y += 12;
   doc.text(`Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"}`, M, y); y += 12;
   doc.text(`Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}`, M, y);
 
@@ -219,8 +250,12 @@ export function printInvoice(inv: InvoiceWithLines): void {
     <style>body{font-family:Arial,sans-serif;color:#111;margin:32px;} h1{margin:0;} .muted{color:#666;font-size:12px;} table{width:100%;border-collapse:collapse;margin-top:16px;} th{text-align:left;padding:6px 8px;border-bottom:2px solid #333;font-size:12px;text-transform:uppercase;} .totals td{padding:4px 8px;} .total{font-size:16px;font-weight:700;}</style>
   </head><body>
     <div style="display:flex;justify-content:space-between;">
-      <div><h1>${BUSINESS.name}</h1>
-        <div class="muted">${BUSINESS.addressLine1}<br>${BUSINESS.addressLine2}<br>${BUSINESS.phone}<br>${BUSINESS.email}<br>${BUSINESS.website}</div>
+      <div style="display:flex;gap:16px;align-items:flex-start;">
+        <img src="${LOGO_URL}" alt="${escape(BUSINESS.name)} logo" style="width:72px;height:72px;object-fit:contain;" />
+        <div>
+          <h1 style="margin:0;">${BUSINESS.name}</h1>
+          <div class="muted">${BUSINESS.addressLine1}<br>${BUSINESS.addressLine2}<br>${BUSINESS.phone}<br>${BUSINESS.email}<br>${BUSINESS.website}</div>
+        </div>
       </div>
       <div style="text-align:right;">
         <h1>INVOICE</h1>
@@ -230,7 +265,7 @@ export function printInvoice(inv: InvoiceWithLines): void {
     </div>
     <hr>
     <div><strong>Bill To</strong><br>${escape(inv.parent_name)}<br>${escape(inv.parent_email)}</div>
-    <div class="muted" style="margin-top:8px;">Semester: ${escape(inv.semester_label)} · Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"} · Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}</div>
+    <div class="muted" style="margin-top:8px;">Semester: ${escape(inv.semester_label)} · Instructor: ${DEFAULT_INSTRUCTOR} · Tuition Plan: ${inv.tuition_plan === "monthly" ? "Monthly" : "Semester (one payment)"} · Invoice Preference: ${inv.invoice_preference === "monthly" ? "Monthly Invoices" : "One Semester Invoice"}</div>
     <table>
       <thead><tr><th>Description</th><th style="text-align:right;">Amount</th></tr></thead>
       <tbody>${rows}</tbody>
