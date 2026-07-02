@@ -189,21 +189,6 @@ export const upsertStudent = createServerFn({ method: "POST" })
     }
   });
 
-export const joinClass = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { studentId: string; classId: string }) =>
-    z.object({ studentId: z.string().uuid(), classId: z.string().uuid() }).parse(d),
-  )
-  .handler(async ({ data, context }) => {
-    const { data: res, error } = await context.supabase.rpc("enroll_or_waitlist", {
-      _student_id: data.studentId,
-      _class_id: data.classId,
-    });
-    if (error) return { error: error.message };
-    const row = Array.isArray(res) ? res[0] : res;
-    return { ok: true as const, placement: row?.placement as string, position: row?.wait_position as number };
-  });
-
 export const cancelEnrollment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { enrollmentId: string }) =>
