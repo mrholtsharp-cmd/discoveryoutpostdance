@@ -186,6 +186,7 @@ function AdminInvoicesPage() {
                   <p className="text-xs text-muted-foreground">
                     {inv.tuition_plan === "monthly" ? "Monthly tuition" : "Semester tuition"} · Prefers {inv.invoice_preference === "monthly" ? "monthly invoices" : "one semester invoice"}
                   </p>
+                  <p className="text-xs text-muted-foreground">Instructor: Melissa</p>
                 </div>
                 <div className="text-right">
                   <p className="font-display text-2xl">{centsToUSD(inv.total_cents)}</p>
