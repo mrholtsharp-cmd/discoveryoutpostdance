@@ -15,11 +15,10 @@ async function ensureAdmin(context: { supabase: any; userId: string }) {
 export const isCurrentUserAdmin = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.rpc("has_role", {
+    const { data } = await context.supabase.rpc("has_role", {
       _user_id: context.userId,
       _role: "admin",
     });
-    console.log("[isCurrentUserAdmin]", { userId: context.userId, data, error });
     return !!data;
   });
 
