@@ -11,7 +11,8 @@ import { toast } from "sonner";
 import { adminSendMessageToParent } from "@/lib/messaging.functions";
 
 interface Props {
-  parentId: string | null | undefined;
+  parentId?: string | null;
+  parentEmail?: string | null;
   parentName?: string | null;
   defaultSubject?: string;
   size?: "sm" | "default";
@@ -19,7 +20,7 @@ interface Props {
   label?: string;
 }
 
-export function MessageParentButton({ parentId, parentName, defaultSubject, size = "sm", variant = "outline", label = "Message Parent" }: Props) {
+export function MessageParentButton({ parentId, parentEmail, parentName, defaultSubject, size = "sm", variant = "outline", label = "Message Parent" }: Props) {
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState(defaultSubject ?? "");
   const [body, setBody] = useState("");
@@ -28,11 +29,13 @@ export function MessageParentButton({ parentId, parentName, defaultSubject, size
   const sendFn = useServerFn(adminSendMessageToParent);
 
   async function submit() {
-    if (!parentId) return;
+    if (!parentId && !parentEmail) return;
     if (!subject.trim() || !body.trim()) { toast.error("Subject and message required"); return; }
     setSending(true);
     try {
-      const r: any = await sendFn({ data: { parent_id: parentId, subject: subject.trim(), body: body.trim(), delivery } });
+      const payload: any = { subject: subject.trim(), body: body.trim(), delivery };
+      if (parentId) payload.parent_id = parentId; else if (parentEmail) payload.parent_email = parentEmail;
+      const r: any = await sendFn({ data: payload });
       if (r?.error) { toast.error(r.error); return; }
       const emailNote = delivery === "portal" ? "" : r?.email_status === "sent" ? " · email sent" : r?.email_status === "failed" ? " · email failed (saved in portal)" : "";
       toast.success(`Message sent${emailNote}`);
@@ -44,7 +47,7 @@ export function MessageParentButton({ parentId, parentName, defaultSubject, size
 
   return (
     <>
-      <Button size={size} variant={variant} onClick={() => setOpen(true)} disabled={!parentId} type="button">
+      <Button size={size} variant={variant} onClick={() => setOpen(true)} disabled={!parentId && !parentEmail} type="button">
         <MessageSquare className="h-4 w-4" /> {label}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
