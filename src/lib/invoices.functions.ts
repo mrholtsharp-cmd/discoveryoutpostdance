@@ -11,6 +11,7 @@ import {
   defaultDueDateISO,
 } from "./business";
 import { getSeasonInfo } from "./season";
+import { ensureInvoicePaymentLink, invalidateInvoicePaymentLink } from "./payments.functions";
 
 async function ensureAdmin(context: { supabase: any; userId: string }) {
   const { data: ok } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
@@ -325,12 +326,18 @@ export const updateInvoiceStatus = createServerFn({ method: "POST" })
     // If setting sent and send_email true, send email
     if (data.status === "sent" && data.send_email !== false) {
       try {
+        // Create/refresh a unique payment link for this invoice before sending.
+        let paymentUrl: string | null = (inv as any).payment_url ?? null;
+        if ((inv as any).total_cents > 0) {
+          const link = await ensureInvoicePaymentLink(data.id);
+          if (!("error" in link)) paymentUrl = link.payment_url;
+        }
         const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
         await enqueueTransactionalEmail({
           templateName: "invoice-sent",
           recipientEmail: (inv as any).parent_email,
           idempotencyKey: `invoice-sent-${data.id}`,
-          templateData: invoiceEmailPayload(inv as unknown as InvoiceWithLines),
+          templateData: { ...invoiceEmailPayload(inv as unknown as InvoiceWithLines), payment_url: paymentUrl },
         });
         await supabaseAdmin.from("invoices").update({ emailed_at: new Date().toISOString() } as never).eq("id", data.id);
         return { ok: true, emailed: true };
@@ -358,6 +365,13 @@ export const updateInvoiceAdmin = createServerFn({ method: "POST" })
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { id, ...patch } = data;
+    // If the invoice is being edited (esp. amount), invalidate any live payment link
+    // so no outdated link remains active. A fresh link is generated next time it's
+    // emailed or the parent visits their portal.
+    const amountChanged = patch.total_cents !== undefined || patch.subtotal_cents !== undefined || patch.discount_cents !== undefined;
+    if (amountChanged) {
+      try { await invalidateInvoicePaymentLink(id); } catch { /* noop */ }
+    }
     const { error } = await supabaseAdmin.from("invoices").update({ ...patch, updated_at: new Date().toISOString() } as never).eq("id", id);
     if (error) return { error: error.message };
     return { ok: true };
@@ -373,12 +387,17 @@ export const emailInvoice = createServerFn({ method: "POST" })
       .from("invoices").select("*, line_items:invoice_line_items(*)").eq("id", data.id).single();
     if (error || !inv) return { error: error?.message ?? "Not found" };
     try {
+      let paymentUrl: string | null = (inv as any).payment_url ?? null;
+      if ((inv as any).total_cents > 0 && (inv as any).status !== "paid" && (inv as any).status !== "cancelled") {
+        const link = await ensureInvoicePaymentLink(data.id);
+        if (!("error" in link)) paymentUrl = link.payment_url;
+      }
       const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
       await enqueueTransactionalEmail({
         templateName: "invoice-sent",
         recipientEmail: (inv as any).parent_email,
         idempotencyKey: `invoice-manual-${data.id}-${Date.now()}`,
-        templateData: invoiceEmailPayload(inv as unknown as InvoiceWithLines),
+        templateData: { ...invoiceEmailPayload(inv as unknown as InvoiceWithLines), payment_url: paymentUrl },
       });
       await supabaseAdmin.from("invoices").update({ emailed_at: new Date().toISOString() } as never).eq("id", data.id);
       return { ok: true };
