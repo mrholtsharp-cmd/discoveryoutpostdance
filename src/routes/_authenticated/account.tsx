@@ -325,6 +325,17 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
                   {businessExpired && !isPaid && !isCancelled && (
                     <p className="mt-2 text-xs text-muted-foreground">This payment link has expired. Ask the studio to send you a new one.</p>
                   )}
+                  {!isPaid && !isCancelled && (
+                    <div className="mt-3">
+                      <PaymentMethods
+                        paymentUrl={canPay ? inv.payment_url : null}
+                        invoiceNumber={inv.invoice_number}
+                        totalCents={inv.total_cents}
+                        onPayStripe={canPay ? () => payInvoice(inv) : undefined}
+                        hideStripe
+                      />
+                    </div>
+                  )}
                 </Card>
               );
             })}
