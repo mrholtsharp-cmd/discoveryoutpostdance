@@ -136,16 +136,16 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       reusedExistingByEmail = true;
       const patch: {
         email: string;
-        phone: string | null;
-        address: string | null;
+        phone?: string;
+        address?: string;
         auth_user_id?: string;
         first_name?: string;
         last_name?: string;
       } = {
         email: normalizedEmail,
-        phone: data.parent.phone ?? null,
-        address: data.parent.address ?? null,
       };
+      if (data.parent.phone) patch.phone = data.parent.phone;
+      if (data.parent.address) patch.address = data.parent.address;
       if (!byEmail.auth_user_id) patch.auth_user_id = authUserId;
       // Only overwrite name fields when non-empty so we don't wipe good data.
       if (data.parent.first_name) patch.first_name = data.parent.first_name;
