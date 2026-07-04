@@ -72,6 +72,7 @@ export type BuildInvoiceInput = {
   invoicePreference: "monthly" | "semester";
   cashPayment: boolean;
   notes?: string | null;
+  idempotencyKey?: string | null;
   // one entry per (student, enrolled class)
   enrollments: Array<{
     student_id: string;
@@ -89,6 +90,18 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
   const seasonYear = season.seasonYear;
 
   if (input.enrollments.length === 0) return null;
+
+  // Idempotency: if an invoice with this key already exists, return it.
+  if (input.idempotencyKey) {
+    const { data: existing } = await supabaseAdmin
+      .from("invoices")
+      .select("id, invoice_number")
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      return { invoiceId: (existing as any).id, invoiceNumber: (existing as any).invoice_number };
+    }
+  }
 
   // Build line items
   const lines: Array<Omit<InvoiceLineItem, "id" | "invoice_id"> & { invoice_id?: string }> = [];
@@ -239,6 +252,7 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       status: "new",
       due_date: defaultDueDateISO(),
       notes: input.notes ?? null,
+      idempotency_key: input.idempotencyKey ?? null,
     } as never)
     .select("id, invoice_number")
     .single();
