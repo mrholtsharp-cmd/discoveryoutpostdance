@@ -70,6 +70,10 @@ function TuitionPage() {
             <li>Registration fee is charged once per student per semester; recital fee is charged once per student.</li>
           </ul>
         </Card>
+
+        <div className="mt-6">
+          <PaymentMethods hideStripe variant="full" />
+        </div>
       </section>
     </Layout>
   );
