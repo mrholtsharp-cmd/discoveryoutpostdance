@@ -89,23 +89,61 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       }
     }
 
-    // Upsert parent for this auth user
-    const { data: existingParent } = await supabaseAdmin
+    // Normalize email for lookup + insert. The parents table has a
+    // UNIQUE(lower(email)) index (parents_email_lower_idx), so we must
+    // get-or-create to avoid duplicate-key errors on repeat registrations.
+    const normalizedEmail = (data.parent.email ?? "").trim().toLowerCase();
+    if (!normalizedEmail) throw new Error("Parent email is required");
+
+    // 1) Prefer the row already linked to this auth user.
+    const { data: byAuth } = await supabaseAdmin
       .from("parents")
-      .select("id")
+      .select("id, auth_user_id, email")
       .eq("auth_user_id", authUserId)
       .maybeSingle();
 
+    // 2) Otherwise look up by normalized email.
+    const { data: byEmail } = byAuth
+      ? { data: null as any }
+      : await supabaseAdmin
+          .from("parents")
+          .select("id, auth_user_id, email")
+          .ilike("email", normalizedEmail)
+          .maybeSingle();
+
     let parentId: string;
-    if (existingParent) {
-      parentId = existingParent.id;
+    let reusedExistingByEmail = false;
+
+    if (byAuth) {
+      parentId = byAuth.id;
       await supabaseAdmin.from("parents").update({
         first_name: data.parent.first_name,
         last_name: data.parent.last_name,
-        email: data.parent.email.toLowerCase(),
+        email: normalizedEmail,
         phone: data.parent.phone,
         address: data.parent.address ?? null,
       }).eq("id", parentId);
+    } else if (byEmail) {
+      // A parent record already exists with this email. Reuse it.
+      // If it isn't yet linked to an auth user, adopt this auth user.
+      // If it's linked to a *different* auth user, refuse rather than merge accounts.
+      if (byEmail.auth_user_id && byEmail.auth_user_id !== authUserId) {
+        throw new Error(
+          "An account with this email already exists. Please sign in as that parent to add another registration.",
+        );
+      }
+      parentId = byEmail.id;
+      reusedExistingByEmail = true;
+      const patch: Record<string, unknown> = {
+        email: normalizedEmail,
+        phone: data.parent.phone,
+        address: data.parent.address ?? null,
+      };
+      if (!byEmail.auth_user_id) patch.auth_user_id = authUserId;
+      // Only overwrite name fields when non-empty so we don't wipe good data.
+      if (data.parent.first_name) patch.first_name = data.parent.first_name;
+      if (data.parent.last_name) patch.last_name = data.parent.last_name;
+      await supabaseAdmin.from("parents").update(patch).eq("id", parentId);
     } else {
       const { data: inserted, error: pErr } = await supabaseAdmin
         .from("parents")
@@ -113,14 +151,43 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
           auth_user_id: authUserId,
           first_name: data.parent.first_name,
           last_name: data.parent.last_name,
-          email: data.parent.email.toLowerCase(),
+          email: normalizedEmail,
           phone: data.parent.phone,
           address: data.parent.address ?? null,
         })
         .select("id")
         .single();
-      if (pErr || !inserted) throw new Error(pErr?.message ?? "Could not create parent");
-      parentId = inserted.id;
+      if (pErr || !inserted) {
+        // Race: another request created the row between our lookup and insert.
+        if ((pErr as any)?.code === "23505") {
+          const { data: raced } = await supabaseAdmin
+            .from("parents")
+            .select("id, auth_user_id")
+            .ilike("email", normalizedEmail)
+            .maybeSingle();
+          if (raced) {
+            if (raced.auth_user_id && raced.auth_user_id !== authUserId) {
+              throw new Error(
+                "An account with this email already exists. Please sign in as that parent to add another registration.",
+              );
+            }
+            parentId = raced.id;
+            reusedExistingByEmail = true;
+            if (!raced.auth_user_id) {
+              await supabaseAdmin
+                .from("parents")
+                .update({ auth_user_id: authUserId })
+                .eq("id", parentId);
+            }
+          } else {
+            throw new Error(pErr?.message ?? "Could not create parent");
+          }
+        } else {
+          throw new Error(pErr?.message ?? "Could not create parent");
+        }
+      } else {
+        parentId = inserted.id;
+      }
     }
 
     // Replace primary emergency contact
