@@ -42,6 +42,7 @@ import { Route as LovableEmailTransactionalSendRouteImport } from './routes/lova
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as ApiPublicStripeWebhookRouteImport } from './routes/api/public/stripe/webhook'
+import { Route as ApiPublicHooksMonthlyTuitionInvoicesRouteImport } from './routes/api/public/hooks/monthly-tuition-invoices'
 
 const TuitionRoute = TuitionRouteImport.update({
   id: '/tuition',
@@ -222,6 +223,12 @@ const ApiPublicStripeWebhookRoute = ApiPublicStripeWebhookRouteImport.update({
   path: '/api/public/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicHooksMonthlyTuitionInvoicesRoute =
+  ApiPublicHooksMonthlyTuitionInvoicesRouteImport.update({
+    id: '/api/public/hooks/monthly-tuition-invoices',
+    path: '/api/public/hooks/monthly-tuition-invoices',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -252,6 +259,7 @@ export interface FileRoutesByFullPath {
   '/api/public/contact': typeof ApiPublicContactRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/hooks/monthly-tuition-invoices': typeof ApiPublicHooksMonthlyTuitionInvoicesRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -285,6 +293,7 @@ export interface FileRoutesByTo {
   '/api/public/contact': typeof ApiPublicContactRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
+  '/api/public/hooks/monthly-tuition-invoices': typeof ApiPublicHooksMonthlyTuitionInvoicesRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -321,6 +330,7 @@ export interface FileRoutesById {
   '/api/public/contact': typeof ApiPublicContactRoute
   '/lovable/email/suppression': typeof LovableEmailSuppressionRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
+  '/api/public/hooks/monthly-tuition-invoices': typeof ApiPublicHooksMonthlyTuitionInvoicesRoute
   '/api/public/stripe/webhook': typeof ApiPublicStripeWebhookRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
@@ -357,6 +367,7 @@ export interface FileRouteTypes {
     | '/api/public/contact'
     | '/lovable/email/suppression'
     | '/admin/'
+    | '/api/public/hooks/monthly-tuition-invoices'
     | '/api/public/stripe/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
@@ -390,6 +401,7 @@ export interface FileRouteTypes {
     | '/api/public/contact'
     | '/lovable/email/suppression'
     | '/admin'
+    | '/api/public/hooks/monthly-tuition-invoices'
     | '/api/public/stripe/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
@@ -425,6 +437,7 @@ export interface FileRouteTypes {
     | '/api/public/contact'
     | '/lovable/email/suppression'
     | '/_authenticated/admin/'
+    | '/api/public/hooks/monthly-tuition-invoices'
     | '/api/public/stripe/webhook'
     | '/lovable/email/queue/process'
     | '/lovable/email/transactional/preview'
@@ -445,6 +458,7 @@ export interface RootRouteChildren {
   EmailUnsubscribeRoute: typeof EmailUnsubscribeRoute
   ApiPublicContactRoute: typeof ApiPublicContactRoute
   LovableEmailSuppressionRoute: typeof LovableEmailSuppressionRoute
+  ApiPublicHooksMonthlyTuitionInvoicesRoute: typeof ApiPublicHooksMonthlyTuitionInvoicesRoute
   ApiPublicStripeWebhookRoute: typeof ApiPublicStripeWebhookRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
@@ -684,6 +698,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/monthly-tuition-invoices': {
+      id: '/api/public/hooks/monthly-tuition-invoices'
+      path: '/api/public/hooks/monthly-tuition-invoices'
+      fullPath: '/api/public/hooks/monthly-tuition-invoices'
+      preLoaderRoute: typeof ApiPublicHooksMonthlyTuitionInvoicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -752,6 +773,8 @@ const rootRouteChildren: RootRouteChildren = {
   EmailUnsubscribeRoute: EmailUnsubscribeRoute,
   ApiPublicContactRoute: ApiPublicContactRoute,
   LovableEmailSuppressionRoute: LovableEmailSuppressionRoute,
+  ApiPublicHooksMonthlyTuitionInvoicesRoute:
+    ApiPublicHooksMonthlyTuitionInvoicesRoute,
   ApiPublicStripeWebhookRoute: ApiPublicStripeWebhookRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
