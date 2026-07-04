@@ -279,22 +279,37 @@ function AdminInvoicesPage() {
                 </table>
               </details>
 
-              <PaymentLinkPanel
-                inv={inv as any}
-                onCopy={copyPaymentLink}
-                onRegen={() => regenM.mutate(inv.id)}
-                regenerating={regenM.isPending}
-              />
+              {inv.status !== "new" && (
+                <PaymentLinkPanel
+                  inv={inv as any}
+                  onCopy={copyPaymentLink}
+                  onRegen={() => regenM.mutate(inv.id)}
+                  regenerating={regenM.isPending}
+                />
+              )}
 
               <div className="flex flex-wrap gap-2 justify-end">
                 <Button size="sm" variant="outline" onClick={() => copyInvoice(inv)}><Copy className="h-3.5 w-3.5" /> Copy</Button>
                 <Button size="sm" variant="outline" onClick={() => printInvoice(inv)}><Printer className="h-3.5 w-3.5" /> Print</Button>
                 <Button size="sm" variant="outline" onClick={() => downloadInvoicePdf(inv)}><Download className="h-3.5 w-3.5" /> PDF</Button>
-                <Button size="sm" variant="outline" onClick={() => emailM.mutate(inv.id)} disabled={emailM.isPending}><Mail className="h-3.5 w-3.5" /> Email</Button>
+                {(inv.status === "sent" || inv.status === "overdue") && (
+                  <Button size="sm" variant="outline" onClick={() => emailM.mutate(inv.id)} disabled={emailM.isPending}>
+                    <Mail className="h-3.5 w-3.5" /> Resend Invoice
+                  </Button>
+                )}
                 {inv.status !== "paid" && inv.status !== "cancelled" && (
                   <Button size="sm" variant="outline" onClick={() => setEditing(inv)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
                 )}
-                {inv.status !== "sent" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: true })}><FileText className="h-3.5 w-3.5" /> Mark Sent</Button>}
+                {inv.status === "new" && (
+                  <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: true })}>
+                    <Mail className="h-3.5 w-3.5" /> Send Invoice
+                  </Button>
+                )}
+                {(inv.status === "overdue" || inv.status === "cancelled") && (
+                  <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: false })}>
+                    <FileText className="h-3.5 w-3.5" /> Mark Sent
+                  </Button>
+                )}
                 {inv.status !== "paid" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "paid" })}><CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid</Button>}
                 {inv.status !== "overdue" && <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "overdue" })}><AlertCircle className="h-3.5 w-3.5" /> Overdue</Button>}
                 {(inv.status === "paid" || (inv.status as string) === "partial_refund") && (inv as any).stripe_payment_intent_id && (
