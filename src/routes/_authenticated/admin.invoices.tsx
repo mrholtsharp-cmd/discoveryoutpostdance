@@ -15,9 +15,10 @@ import {
   listInvoicesAdmin, updateInvoiceStatus, updateInvoiceAdmin, emailInvoice,
   type InvoiceWithLines,
 } from "@/lib/invoices.functions";
+import { regenerateInvoicePaymentLink } from "@/lib/payments.functions";
 import { invoiceAsText, downloadInvoicePdf, printInvoice } from "@/lib/invoice-format";
 import { centsToUSD } from "@/lib/business";
-import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil } from "lucide-react";
+import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil, Link2, RefreshCw, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/invoices")({
   head: () => ({ meta: [{ title: "Invoices — Admin" }] }),
@@ -42,6 +43,7 @@ function AdminInvoicesPage() {
   const statusFn = useServerFn(updateInvoiceStatus);
   const updateFn = useServerFn(updateInvoiceAdmin);
   const emailFn = useServerFn(emailInvoice);
+  const regenFn = useServerFn(regenerateInvoicePaymentLink);
 
   const q = useQuery({ queryKey: ["admin-invoices"], queryFn: () => listFn() });
   const [search, setSearch] = useState("");
@@ -110,11 +112,26 @@ function AdminInvoicesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const regenM = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const r: any = await regenFn({ data: { invoiceId } });
+      if (r?.error) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: () => { toast.success("New payment link generated"); qc.invalidateQueries({ queryKey: ["admin-invoices"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   async function copyInvoice(inv: InvoiceWithLines) {
     try {
       await navigator.clipboard.writeText(invoiceAsText(inv));
       toast.success("Invoice copied to clipboard");
     } catch { toast.error("Could not copy"); }
+  }
+
+  async function copyPaymentLink(url: string) {
+    try { await navigator.clipboard.writeText(url); toast.success("Payment link copied"); }
+    catch { toast.error("Could not copy"); }
   }
 
   return (
@@ -207,6 +224,13 @@ function AdminInvoicesPage() {
                   </tbody>
                 </table>
               </details>
+
+              <PaymentLinkPanel
+                inv={inv as any}
+                onCopy={copyPaymentLink}
+                onRegen={() => regenM.mutate(inv.id)}
+                regenerating={regenM.isPending}
+              />
 
               <div className="flex flex-wrap gap-2 justify-end">
                 <Button size="sm" variant="outline" onClick={() => copyInvoice(inv)}><Copy className="h-3.5 w-3.5" /> Copy</Button>
