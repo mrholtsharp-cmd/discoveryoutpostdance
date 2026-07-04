@@ -140,21 +140,46 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       monthly_cents: number; semester_cents: number;
     }> = [];
     for (const s of data.students) {
-      const { data: stu, error: sErr } = await supabaseAdmin
+      // Dedupe on (parent_id, first_name, last_name, date_of_birth). This
+      // prevents duplicate student rows if a submission is retried without
+      // an idempotency key (e.g. legacy client, network retry).
+      let studentId: string;
+      const { data: existingStu } = await supabaseAdmin
         .from("students")
-        .insert({
-          parent_id: parentId,
-          first_name: s.first_name,
-          last_name: s.last_name,
-          date_of_birth: s.date_of_birth,
+        .select("id")
+        .eq("parent_id", parentId)
+        .eq("first_name", s.first_name)
+        .eq("last_name", s.last_name)
+        .eq("date_of_birth", s.date_of_birth)
+        .maybeSingle();
+      if (existingStu) {
+        studentId = (existingStu as any).id;
+        // Refresh mutable metadata in case it changed.
+        await supabaseAdmin.from("students").update({
           grade: s.grade ?? null,
           allergies: s.allergies ?? null,
           medical_notes: s.medical_notes ?? null,
           shirt_size: s.shirt_size ?? null,
-        })
-        .select("id")
-        .single();
-      if (sErr || !stu) throw new Error(sErr?.message ?? "Could not create student");
+        } as never).eq("id", studentId);
+      } else {
+        const { data: stu, error: sErr } = await supabaseAdmin
+          .from("students")
+          .insert({
+            parent_id: parentId,
+            first_name: s.first_name,
+            last_name: s.last_name,
+            date_of_birth: s.date_of_birth,
+            grade: s.grade ?? null,
+            allergies: s.allergies ?? null,
+            medical_notes: s.medical_notes ?? null,
+            shirt_size: s.shirt_size ?? null,
+          })
+          .select("id")
+          .single();
+        if (sErr || !stu) throw new Error(sErr?.message ?? "Could not create student");
+        studentId = stu.id;
+      }
+      const stu = { id: studentId };
 
       // Compute age (int, required by registrations table)
       const dob = new Date(s.date_of_birth + "T00:00:00");
