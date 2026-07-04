@@ -480,6 +480,7 @@ export type Database = {
           due_date: string
           emailed_at: string | null
           id: string
+          idempotency_key: string | null
           invoice_date: string
           invoice_number: string
           invoice_preference: string
@@ -517,6 +518,7 @@ export type Database = {
           due_date: string
           emailed_at?: string | null
           id?: string
+          idempotency_key?: string | null
           invoice_date?: string
           invoice_number: string
           invoice_preference: string
@@ -554,6 +556,7 @@ export type Database = {
           due_date?: string
           emailed_at?: string | null
           id?: string
+          idempotency_key?: string | null
           invoice_date?: string
           invoice_number?: string
           invoice_preference?: string
