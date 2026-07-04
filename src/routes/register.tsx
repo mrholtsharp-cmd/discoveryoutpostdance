@@ -248,6 +248,7 @@ function RegisterWizard() {
           invoice_preference: state.invoice_preference!,
           cash_payment: state.cash_payment,
           notes: state.notes || null,
+          idempotency_key: getOrCreateIdempotencyKey(),
         },
       });
 
@@ -257,6 +258,7 @@ function RegisterWizard() {
       const invNum = (result as any).invoice?.invoiceNumber;
       toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted.${invNum ? ` Invoice ${invNum} created.` : ""}`);
       sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+      try { sessionStorage.removeItem(WIZARD_IDEMPOTENCY_KEY); } catch {}
       navigate({ to: "/account" });
     } catch (e) {
       toast.error((e as Error).message);
