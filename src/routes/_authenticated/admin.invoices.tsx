@@ -267,6 +267,54 @@ function StatChip({ label, value, tone }: { label: string; value: number; tone?:
   );
 }
 
+function PaymentLinkPanel({
+  inv, onCopy, onRegen, regenerating,
+}: { inv: any; onCopy: (u: string) => void; onRegen: () => void; regenerating: boolean }) {
+  const isPaid = inv.status === "paid";
+  const isCancelled = inv.status === "cancelled";
+  const createdAt = inv.stripe_session_created_at ? new Date(inv.stripe_session_created_at) : null;
+  const businessExpired = createdAt ? (Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30 * 4) : false;
+  const stripeExpired = createdAt ? (Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 23) : false;
+
+  const linkStatus =
+    isPaid ? { label: "Paid", tone: "bg-emerald-100 text-emerald-800 border-emerald-200" } :
+    isCancelled ? { label: "Cancelled", tone: "bg-zinc-200 text-zinc-700 border-zinc-300" } :
+    businessExpired ? { label: "Expired (4-month)", tone: "bg-red-100 text-red-800 border-red-200" } :
+    !inv.payment_url ? { label: "Not generated", tone: "bg-slate-100 text-slate-700 border-slate-200" } :
+    stripeExpired ? { label: "Stale (regenerate)", tone: "bg-amber-100 text-amber-800 border-amber-200" } :
+    { label: "Active", tone: "bg-blue-100 text-blue-800 border-blue-200" };
+
+  return (
+    <div className="rounded-md border bg-muted/10 p-3 text-sm space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-wide text-muted-foreground">Payment link</span>
+        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${linkStatus.tone}`}>{linkStatus.label}</span>
+        {createdAt && <span className="text-xs text-muted-foreground">created {createdAt.toLocaleString()}</span>}
+      </div>
+      {inv.stripe_session_id && (
+        <p className="text-xs text-muted-foreground font-mono truncate">Session: {inv.stripe_session_id}</p>
+      )}
+      {inv.stripe_payment_intent_id && (
+        <p className="text-xs text-muted-foreground font-mono truncate">Payment intent: {inv.stripe_payment_intent_id}</p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {inv.payment_url && !businessExpired && !isPaid && !isCancelled && (
+          <>
+            <Button size="sm" variant="outline" onClick={() => onCopy(inv.payment_url)}><Link2 className="h-3.5 w-3.5" /> Copy link</Button>
+            <Button size="sm" variant="outline" onClick={() => window.open(inv.payment_url, "_blank")}><ExternalLink className="h-3.5 w-3.5" /> Open</Button>
+          </>
+        )}
+        {!isPaid && !isCancelled && (
+          <Button size="sm" variant="outline" onClick={onRegen} disabled={regenerating}>
+            <RefreshCw className={`h-3.5 w-3.5 ${regenerating ? "animate-spin" : ""}`} />
+            {inv.payment_url ? "Regenerate link" : "Generate link"}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditInvoiceDialog({
   invoice, onClose, onSave, saving,
 }: { invoice: InvoiceWithLines | null; onClose: () => void; onSave: (p: any) => void; saving: boolean }) {
