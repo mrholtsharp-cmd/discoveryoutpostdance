@@ -163,7 +163,13 @@ const Email = (props: Props) => {
                 <a href={payment_url} style={{ color: '#2563eb', wordBreak: 'break-all' as const }}>{payment_url}</a>
               </Text>
             </Section>
-          ) : null}
+          ) : (
+            <Section style={{ marginTop: '18px', padding: '12px', backgroundColor: '#fef3c7', borderRadius: '6px' }}>
+              <Text style={{ ...val, color: '#92400e', margin: 0 }}>
+                Stripe payment link coming soon — you can pay now using Cash App, Venmo, PayPal, or cash at the studio (details below).
+              </Text>
+            </Section>
+          )}
 
           <Hr style={{ borderColor: '#e5e7eb', margin: '16px 0' }} />
 
