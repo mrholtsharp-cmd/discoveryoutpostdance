@@ -264,6 +264,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
           cashPayment: data.cash_payment,
           notes: data.notes ?? null,
           enrollments: enrolledForInvoice,
+          idempotencyKey: data.idempotency_key ?? null,
         });
       } catch (e) {
         console.error("Invoice generation failed:", e);
