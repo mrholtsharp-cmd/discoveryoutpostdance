@@ -98,11 +98,13 @@ function AccountPage() {
 
   const invoiceRequests = (snap.invoice_requests ?? []) as any[];
   const realInvoices = (myInvoices ?? []) as any[];
-  // Real unpaid balance from actual invoices (status new / sent / overdue).
+  // Only issued invoices are payable in the portal. Drafts (status "new")
+  // are admin-only until "Send Invoice" is clicked, so they are excluded
+  // from the parent's balance and unpaid count.
   const balanceCents = realInvoices
-    .filter((inv: any) => inv.status === "new" || inv.status === "sent" || inv.status === "overdue")
+    .filter((inv: any) => inv.status === "sent" || inv.status === "overdue")
     .reduce((sum: number, inv: any) => sum + (inv.total_cents ?? 0), 0);
-  const unpaidInvoiceCount = realInvoices.filter((inv: any) => inv.status === "new" || inv.status === "sent" || inv.status === "overdue").length;
+  const unpaidInvoiceCount = realInvoices.filter((inv: any) => inv.status === "sent" || inv.status === "overdue").length;
   const paidInvoiceCount = realInvoices.filter((inv: any) => inv.status === "paid").length;
 
   const totalEnrollments = snap.students.reduce((n: number, st: any) => n + st.enrollments.filter((e: any) => e.status === "active").length, 0);
@@ -248,7 +250,12 @@ function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onC
     } finally { setPayingId(null); }
   }
 
-  const visible = (myInvoices ?? []).filter((inv: any) => inv.status !== "cancelled");
+  // Only show invoices the admin has issued. Drafts (status "new") are
+  // admin-only and are not payable in the parent portal until the admin
+  // clicks "Send Invoice".
+  const visible = (myInvoices ?? []).filter(
+    (inv: any) => inv.status !== "cancelled" && inv.status !== "new",
+  );
   const unpaid = visible.filter((inv: any) => inv.status !== "paid");
   const paid = visible.filter((inv: any) => inv.status === "paid");
 
