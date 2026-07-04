@@ -130,6 +130,7 @@ function RegisterWizard() {
   const classesQuery = useQuery({
     queryKey: ["wizard-classes"],
     queryFn: () => listClassesWithAvailability(),
+    retry: 1,
   });
 
   const submitFn = useServerFn(submitFullRegistration);
