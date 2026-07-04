@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { LoadError } from "@/components/site/LoadError";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { listSchedule } from "@/lib/schedule.functions";
