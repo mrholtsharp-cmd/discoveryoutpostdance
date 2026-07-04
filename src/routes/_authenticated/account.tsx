@@ -301,48 +301,36 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
               const createdAt = inv.stripe_session_created_at ? new Date(inv.stripe_session_created_at) : null;
               const businessExpired = createdAt ? (Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30 * 4) : false;
               const canPay = !isPaid && !isCancelled && inv.total_cents > 0 && !businessExpired;
-              const badgeTone =
-                isPaid ? "bg-emerald-100 text-emerald-800 border-emerald-200" :
-                isCancelled ? "bg-zinc-200 text-zinc-700 border-zinc-300" :
-                businessExpired ? "bg-red-100 text-red-800 border-red-200" :
-                "bg-blue-100 text-blue-800 border-blue-200";
-              const badgeLabel = isPaid ? "Paid" : isCancelled ? "Cancelled" : businessExpired ? "Link expired" : (inv.status === "sent" ? "Sent" : "New");
-              return (
-                <Card key={inv.id} className="p-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium font-mono text-sm">{inv.invoice_number}</p>
-                      <p className="text-xs text-muted-foreground">{inv.semester_label} · Due {fmtDate(inv.due_date)}</p>
-                    </div>
-                    <div className="text-right">
+              if (isCancelled) return null;
+              if (isPaid) {
+                return (
+                  <Card key={inv.id} className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-emerald-700">Paid</p>
+                        {inv.paid_at && (
+                          <p className="text-xs text-muted-foreground">{new Date(inv.paid_at).toLocaleDateString()}</p>
+                        )}
+                      </div>
                       <p className="font-display text-xl">{fmtMoney(inv.total_cents)}</p>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs ${badgeTone}`}>{badgeLabel}</span>
                     </div>
-                  </div>
-                  {canPay && (
-                    <div className="mt-3">
-                      <Button className="rounded-full w-full sm:w-auto" onClick={() => payInvoice(inv)} disabled={payingId === inv.id}>
-                        {payingId === inv.id ? "Opening secure checkout…" : `Pay Now — ${fmtMoney(inv.total_cents)}`}
-                      </Button>
-                    </div>
-                  )}
-                  {isPaid && inv.paid_at && (
-                    <p className="mt-2 text-xs text-emerald-700">Paid {new Date(inv.paid_at).toLocaleString()}</p>
-                  )}
-                  {businessExpired && !isPaid && !isCancelled && (
-                    <p className="mt-2 text-xs text-muted-foreground">This payment link has expired. Ask the studio to send you a new one.</p>
-                  )}
-                  {!isPaid && !isCancelled && (
-                    <div className="mt-3">
-                      <PaymentMethods
-                        paymentUrl={canPay ? inv.payment_url : null}
-                        invoiceNumber={inv.invoice_number}
-                        totalCents={inv.total_cents}
-                        onPayStripe={canPay ? () => payInvoice(inv) : undefined}
-                        hideStripe
-                      />
-                    </div>
-                  )}
+                  </Card>
+                );
+              }
+              return (
+                <Card key={inv.id} className="p-5">
+                  <p className="font-display text-lg">You have a balance due</p>
+                  <p className="font-display text-3xl mt-1">{fmtMoney(inv.total_cents)}</p>
+                  {canPay ? (
+                    <Button className="rounded-full mt-4 w-full sm:w-auto" onClick={() => payInvoice(inv)} disabled={payingId === inv.id}>
+                      {payingId === inv.id ? "Opening secure checkout…" : "Pay Online"}
+                    </Button>
+                  ) : businessExpired ? (
+                    <p className="mt-3 text-sm text-muted-foreground">This payment link has expired. Please contact the studio for a new one.</p>
+                  ) : null}
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Cash, Venmo, PayPal, and Cash App payments may be handled through the studio.
+                  </p>
                 </Card>
               );
             })}
