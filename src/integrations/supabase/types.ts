@@ -489,13 +489,19 @@ export type Database = {
           parent_email: string
           parent_id: string
           parent_name: string
+          payment_amount_cents: number | null
           payment_failure_reason: string | null
+          payment_method: string | null
+          payment_url: string | null
+          receipt_url: string | null
           semester_label: string
           semester_year: number
           sent_at: string | null
           status: string
           stripe_environment: string | null
           stripe_payment_intent_id: string | null
+          stripe_session_created_at: string | null
+          stripe_session_expires_at: string | null
           stripe_session_id: string | null
           stripe_subscription_id: string | null
           subtotal_cents: number
@@ -520,13 +526,19 @@ export type Database = {
           parent_email: string
           parent_id: string
           parent_name: string
+          payment_amount_cents?: number | null
           payment_failure_reason?: string | null
+          payment_method?: string | null
+          payment_url?: string | null
+          receipt_url?: string | null
           semester_label: string
           semester_year: number
           sent_at?: string | null
           status?: string
           stripe_environment?: string | null
           stripe_payment_intent_id?: string | null
+          stripe_session_created_at?: string | null
+          stripe_session_expires_at?: string | null
           stripe_session_id?: string | null
           stripe_subscription_id?: string | null
           subtotal_cents?: number
@@ -551,13 +563,19 @@ export type Database = {
           parent_email?: string
           parent_id?: string
           parent_name?: string
+          payment_amount_cents?: number | null
           payment_failure_reason?: string | null
+          payment_method?: string | null
+          payment_url?: string | null
+          receipt_url?: string | null
           semester_label?: string
           semester_year?: number
           sent_at?: string | null
           status?: string
           stripe_environment?: string | null
           stripe_payment_intent_id?: string | null
+          stripe_session_created_at?: string | null
+          stripe_session_expires_at?: string | null
           stripe_session_id?: string | null
           stripe_subscription_id?: string | null
           subtotal_cents?: number
