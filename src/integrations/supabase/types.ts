@@ -650,28 +650,43 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          delivery_method: string
+          email_message_id: string | null
+          email_status: string | null
           id: string
+          read_at: string | null
           sender_name: string
           sender_type: string
           sender_user_id: string | null
+          subject: string | null
           thread_id: string
         }
         Insert: {
           body: string
           created_at?: string
+          delivery_method?: string
+          email_message_id?: string | null
+          email_status?: string | null
           id?: string
+          read_at?: string | null
           sender_name: string
           sender_type: string
           sender_user_id?: string | null
+          subject?: string | null
           thread_id: string
         }
         Update: {
           body?: string
           created_at?: string
+          delivery_method?: string
+          email_message_id?: string | null
+          email_status?: string | null
           id?: string
+          read_at?: string | null
           sender_name?: string
           sender_type?: string
           sender_user_id?: string | null
+          subject?: string | null
           thread_id?: string
         }
         Relationships: [
