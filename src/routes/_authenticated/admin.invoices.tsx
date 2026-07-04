@@ -174,10 +174,16 @@ function AdminInvoicesPage() {
         </Link>
         <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
           <h1 className="font-display text-3xl">Invoices</h1>
-          <Button variant="outline" size="sm" onClick={() => monthlyM.mutate()} disabled={monthlyM.isPending}>
-            <PlayCircle className="h-3.5 w-3.5" />
-            {monthlyM.isPending ? "Running…" : "Run monthly renewal now"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => q.refetch()} disabled={q.isFetching}>
+              <RefreshCw className={`h-3.5 w-3.5 ${q.isFetching ? "animate-spin" : ""}`} />
+              {q.isFetching ? "Refreshing…" : "Refresh"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => monthlyM.mutate()} disabled={monthlyM.isPending}>
+              <PlayCircle className="h-3.5 w-3.5" />
+              {monthlyM.isPending ? "Running…" : "Run monthly renewal now"}
+            </Button>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
           Every registration auto-generates an invoice. Monthly renewals run automatically on the 1st of each month; the button above runs them on demand (safe — idempotent per parent/month).

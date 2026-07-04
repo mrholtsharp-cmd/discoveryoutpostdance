@@ -89,7 +89,12 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
   const season = getSeasonInfo();
   const seasonYear = season.seasonYear;
 
-  if (input.enrollments.length === 0) return null;
+  const dev = process.env.NODE_ENV !== "production";
+  if (dev) console.log(`[invoice] build_start parent=${input.parentEmail} enrollments=${input.enrollments.length}`);
+  if (input.enrollments.length === 0) {
+    if (dev) console.log("[invoice] skipped: no enrolled students (waitlist-only)");
+    return null;
+  }
 
   // Idempotency: if an invoice with this key already exists, return it.
   if (input.idempotencyKey) {
@@ -99,6 +104,7 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       .eq("idempotency_key", input.idempotencyKey)
       .maybeSingle();
     if (existing) {
+      if (dev) console.log(`[invoice] idempotent hit id=${(existing as any).id} number=${(existing as any).invoice_number}`);
       return { invoiceId: (existing as any).id, invoiceNumber: (existing as any).invoice_number };
     }
   }
@@ -257,11 +263,13 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
     .select("id, invoice_number")
     .single();
   if (invErr || !inv) throw new Error(invErr?.message ?? "Could not create invoice");
+  if (dev) console.log(`[invoice] inserted id=${inv.id} number=${inv.invoice_number} total_cents=${total}`);
 
   // 7. Insert line items
   const lineRows = lines.map((l) => ({ ...l, invoice_id: inv.id }));
   const { error: linesErr } = await supabaseAdmin.from("invoice_line_items").insert(lineRows as never);
   if (linesErr) throw new Error(linesErr.message);
+  if (dev) console.log(`[invoice] line_items_inserted count=${lineRows.length}`);
 
   // 8. Best-effort: generate Stripe link + send invoice email. Never fail
   //    registration if Stripe or email are unavailable — the invoice row
@@ -328,6 +336,9 @@ export const listInvoicesAdmin = createServerFn({ method: "GET" })
       .select("*, line_items:invoice_line_items(*)")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[invoice] listInvoicesAdmin returned count=${(data ?? []).length}`);
+    }
     return (data ?? []) as unknown as InvoiceWithLines[];
   });
 

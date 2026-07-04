@@ -340,6 +340,9 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
 
     // Auto-generate invoice for enrolled classes.
     let invoice: { invoiceId: string; invoiceNumber: string } | null = null;
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[registration] completed parent_id=${parentId} enrolled=${enrolledForInvoice.length} placements=${JSON.stringify(results.map((r: any) => r.placement ?? r))}`);
+    }
     if (enrolledForInvoice.length > 0) {
       const tInv = Date.now();
       try {
@@ -355,10 +358,15 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
           enrollments: enrolledForInvoice,
           idempotencyKey: data.idempotency_key ?? null,
         });
+        if (process.env.NODE_ENV !== "production") {
+          console.log(`[registration] invoice_created id=${invoice?.invoiceId ?? "none"} number=${invoice?.invoiceNumber ?? "none"}`);
+        }
       } catch (e) {
-        console.error("Invoice generation failed:", e);
+        console.error("[registration] Invoice generation failed (non-fatal):", e);
       }
       mark("invoice_build_and_email", tInv);
+    } else if (process.env.NODE_ENV !== "production") {
+      console.log("[registration] no invoice: all placements were waitlisted");
     }
 
     mark("total_registration", t0);
