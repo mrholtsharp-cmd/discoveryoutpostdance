@@ -13,6 +13,7 @@ import { listParentsAdmin, updateParentAdmin } from "@/lib/admin-v2.functions";
 import { exportPdfReport } from "@/lib/admin-pdf";
 import { toast } from "sonner";
 import { Search, Pencil, Download } from "lucide-react";
+import { MessageParentButton } from "@/components/admin/MessageParentButton";
 
 export const Route = createFileRoute("/_authenticated/admin/parents")({
   head: () => ({ meta: [{ title: "Parents — Admin" }] }),
@@ -103,12 +104,15 @@ function ParentsPage() {
                   <td className="py-2 px-4 text-muted-foreground">{p.phone}</td>
                   <td className="py-2 px-4">{(p.students ?? []).length}</td>
                   <td className="py-2 px-4 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => setEdit({
-                      id: p.id, first_name: p.first_name ?? "", last_name: p.last_name ?? "",
-                      email: p.email ?? "", phone: p.phone ?? "", address: p.address, admin_notes: p.admin_notes,
-                    })}>
-                      <Pencil className="h-3.5 w-3.5" /> Edit
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <MessageParentButton parentId={p.id} parentName={`${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || p.email} />
+                      <Button size="sm" variant="ghost" onClick={() => setEdit({
+                        id: p.id, first_name: p.first_name ?? "", last_name: p.last_name ?? "",
+                        email: p.email ?? "", phone: p.phone ?? "", address: p.address, admin_notes: p.admin_notes,
+                      })}>
+                        <Pencil className="h-3.5 w-3.5" /> Edit
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

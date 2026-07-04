@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { listMyThreads, listThreadMessages, createThread, postMessage } from "@/lib/messaging.functions";
+import { listMyThreads, listThreadMessages, createThread, postMessage, markThreadRead } from "@/lib/messaging.functions";
 import { MessageCircle, Send, ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/messages")({
@@ -23,6 +23,7 @@ function MessagesPage() {
   const msgsFn = useServerFn(listThreadMessages);
   const createFn = useServerFn(createThread);
   const postFn = useServerFn(postMessage);
+  const markReadFn = useServerFn(markThreadRead);
 
   const threads = useQuery({ queryKey: ["my-threads"], queryFn: () => listFn() });
   const [openId, setOpenId] = useState<string | null>(null);
@@ -36,6 +37,11 @@ function MessagesPage() {
     queryFn: () => msgsFn({ data: { thread_id: openId! } }),
     enabled: !!openId,
   });
+
+  useEffect(() => {
+    if (!openId) return;
+    markReadFn({ data: { thread_id: openId } }).catch(() => {});
+  }, [openId, markReadFn]);
 
   const createM = useMutation({
     mutationFn: async () => {

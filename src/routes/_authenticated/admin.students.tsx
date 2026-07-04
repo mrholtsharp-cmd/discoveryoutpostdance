@@ -18,6 +18,7 @@ import {
 import { exportPdfReport } from "@/lib/admin-pdf";
 import { toast } from "sonner";
 import { Search, Pencil, MoveRight, Download } from "lucide-react";
+import { MessageParentButton } from "@/components/admin/MessageParentButton";
 
 export const Route = createFileRoute("/_authenticated/admin/students")({
   head: () => ({ meta: [{ title: "Students — Admin" }] }),
@@ -143,6 +144,13 @@ function StudentsPage() {
                     <Button size="sm" variant="ghost" onClick={() => setMoveOpen({ id: s.id, name: `${s.first_name} ${s.last_name}` })}>
                       <MoveRight className="h-3.5 w-3.5" /> Move
                     </Button>
+                    <MessageParentButton
+                      parentId={s.parent_id}
+                      parentName={s.parents ? `${s.parents.first_name} ${s.parents.last_name}` : undefined}
+                      defaultSubject={`Regarding ${s.first_name} ${s.last_name}`}
+                      variant="ghost"
+                      label="Message"
+                    />
                   </td>
                 </tr>
               ))}

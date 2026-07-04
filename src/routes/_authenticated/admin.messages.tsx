@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { listAllThreadsAdmin, listThreadMessages, postMessage, updateThreadStatus } from "@/lib/messaging.functions";
-import { ArrowLeft, Send } from "lucide-react";
+import { listAllThreadsAdmin, listThreadMessages, postMessage, updateThreadStatus, adminResendMessage } from "@/lib/messaging.functions";
+import { ArrowLeft, Send, RotateCw } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/messages")({
   head: () => ({ meta: [{ title: "Messages — Admin" }] }),
@@ -21,6 +21,7 @@ function AdminMessagesPage() {
   const msgsFn = useServerFn(listThreadMessages);
   const postFn = useServerFn(postMessage);
   const statusFn = useServerFn(updateThreadStatus);
+  const resendFn = useServerFn(adminResendMessage);
   const threads = useQuery({ queryKey: ["admin-threads"], queryFn: () => listFn() });
   const [openId, setOpenId] = useState<string | null>(null);
   const [reply, setReply] = useState("");
@@ -50,6 +51,16 @@ function AdminMessagesPage() {
       if ("error" in r) throw new Error(r.error);
     },
     onSuccess: () => { toast.success("Updated"); qc.invalidateQueries({ queryKey: ["admin-threads"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const resendM = useMutation({
+    mutationFn: async (message_id: string) => {
+      const r: any = await resendFn({ data: { message_id } });
+      if (r?.error) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: (r: any) => { toast.success(`Email ${r?.email_status ?? "sent"}`); qc.invalidateQueries({ queryKey: ["admin-thread-msgs", openId] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
@@ -110,8 +121,22 @@ function AdminMessagesPage() {
                   <div key={m.id} className={`rounded-md p-3 text-sm ${m.sender_type === "admin" ? "bg-primary/10" : "bg-muted"}`}>
                     <p className="text-xs text-muted-foreground mb-1">
                       <strong>{m.sender_name}</strong> · {new Date(m.created_at).toLocaleString()}
+                      {m.sender_type === "admin" && (m as any).delivery_method && (
+                        <span className="ml-2 text-[10px] uppercase tracking-wide">
+                          · {(m as any).delivery_method}
+                          {(m as any).email_status && ` · email ${(m as any).email_status}`}
+                          {(m as any).read_at ? ` · read ${new Date((m as any).read_at).toLocaleDateString()}` : m.sender_type === "admin" ? " · unread" : ""}
+                        </span>
+                      )}
                     </p>
                     <p className="whitespace-pre-wrap">{m.body}</p>
+                    {m.sender_type === "admin" && (
+                      <div className="mt-2">
+                        <Button size="sm" variant="ghost" onClick={() => resendM.mutate(m.id)} disabled={resendM.isPending}>
+                          <RotateCw className="h-3 w-3" /> Resend email
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -22,6 +22,7 @@ import { invoiceAsText, downloadInvoicePdf, printInvoice } from "@/lib/invoice-f
 import { centsToUSD } from "@/lib/business";
 import { LoadError } from "@/components/site/LoadError";
 import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil, Link2, RefreshCw, ExternalLink, Undo2, PlayCircle } from "lucide-react";
+import { MessageParentButton } from "@/components/admin/MessageParentButton";
 
 export const Route = createFileRoute("/_authenticated/admin/invoices")({
   head: () => ({ meta: [{ title: "Invoices — Admin" }] }),
@@ -296,6 +297,12 @@ function AdminInvoicesPage() {
                   </Button>
                 )}
                 {inv.status !== "cancelled" && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (confirm("Cancel this invoice?")) setStatus.mutate({ id: inv.id, status: "cancelled" }); }}><XCircle className="h-3.5 w-3.5" /> Cancel</Button>}
+                <MessageParentButton
+                  parentId={(inv as any).parent_id}
+                  parentEmail={inv.parent_email}
+                  parentName={inv.parent_name}
+                  defaultSubject={`Regarding invoice ${inv.invoice_number}`}
+                />
               </div>
             </Card>
           ))}

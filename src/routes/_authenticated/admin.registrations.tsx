@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MessageParentButton } from "@/components/admin/MessageParentButton";
 
 function approvalBadge(s: string | null | undefined) {
   const v = s ?? "pending";
@@ -432,6 +433,11 @@ function RegistrationsAdminPage() {
                                   <Button size="sm" variant="outline" asChild>
                                     <Link to="/admin/invoice-requests">Manage invoices</Link>
                                   </Button>
+                                  <MessageParentButton
+                                    parentEmail={r.email}
+                                    parentName={r.parent_name}
+                                    defaultSubject={`Regarding ${r.student_name}'s registration`}
+                                  />
                                 </div>
                               </div>
                             </div>
