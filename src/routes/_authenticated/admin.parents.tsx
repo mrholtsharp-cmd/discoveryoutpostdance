@@ -13,6 +13,7 @@ import { listParentsAdmin, updateParentAdmin } from "@/lib/admin-v2.functions";
 import { exportPdfReport } from "@/lib/admin-pdf";
 import { toast } from "sonner";
 import { Search, Pencil, Download } from "lucide-react";
+import { MessageParentButton } from "@/components/admin/MessageParentButton";
 
 export const Route = createFileRoute("/_authenticated/admin/parents")({
   head: () => ({ meta: [{ title: "Parents — Admin" }] }),
