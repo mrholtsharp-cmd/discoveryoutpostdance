@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import { listMyInvoices } from "@/lib/invoices.functions";
 import { getMyInvoicePaymentLink } from "@/lib/payments.functions";
+import { getMyUnreadMessageCount } from "@/lib/messaging.functions";
 import {
   getMyPortalSnapshot,
   updateMyParent,
@@ -52,6 +53,7 @@ function AccountPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
   const [myInvoices, setMyInvoicesTop] = useState<any[] | null>(null);
+  const [unreadMsgs, setUnreadMsgs] = useState<number>(0);
   const [tab, setTab] = useState<"overview" | "students" | "invoices" | "profile">("overview");
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -70,6 +72,7 @@ function AccountPage() {
       setClasses(c);
       setMyInvoicesTop(inv as any[]);
       setLoadState("loaded");
+      try { const r = await getMyUnreadMessageCount(); setUnreadMsgs(r?.count ?? 0); } catch {}
     } catch (e: any) {
       console.error("[account] portal load failed:", e);
       setLoadError(e?.message || "Something went wrong loading your account.");
@@ -125,7 +128,11 @@ function AccountPage() {
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" className="rounded-full" asChild>
-              <Link to="/messages">Messages</Link>
+              <Link to="/messages">
+                Messages{unreadMsgs > 0 && (
+                  <span className="ml-2 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] px-1.5 py-0.5 min-w-[18px]">{unreadMsgs}</span>
+                )}
+              </Link>
             </Button>
             <Button variant="outline" size="sm" className="rounded-full"
               onClick={async () => { await supabase.auth.signOut(); window.location.href = "/"; }}>
