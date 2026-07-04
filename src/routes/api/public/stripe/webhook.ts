@@ -146,6 +146,50 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               } as never).eq("id", invoiceId).eq("stripe_session_id", s.id);
               break;
             }
+            case "charge.refunded":
+            case "refund.updated": {
+              // Look up invoice by payment_intent, reconcile refunded_amount_cents/status.
+              const obj: any = event.data.object;
+              const paymentIntent: string | null =
+                typeof obj.payment_intent === "string" ? obj.payment_intent :
+                obj.payment_intent?.id ?? obj.charge ?? null;
+              if (!paymentIntent) break;
+              const { data: invRow3 } = await supabaseAdmin
+                .from("invoices").select("id, total_cents, parent_email, parent_name")
+                .eq("stripe_payment_intent_id", paymentIntent).maybeSingle();
+              if (!invRow3) {
+                console.warn("[stripe-webhook] refund for unknown PI:", paymentIntent, "event", event.id);
+                break;
+              }
+              // amount_refunded is the running total on the Charge object.
+              const totalRefunded: number =
+                typeof obj.amount_refunded === "number" ? obj.amount_refunded :
+                typeof obj.amount === "number" ? obj.amount : 0;
+              const invoiceTotal = (invRow3 as any).total_cents ?? 0;
+              const isFull = totalRefunded >= invoiceTotal && invoiceTotal > 0;
+              await supabaseAdmin.from("invoices").update({
+                status: isFull ? "refunded" : "partial_refund",
+                refunded_amount_cents: totalRefunded,
+                refunded_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              } as never).eq("id", (invRow3 as any).id);
+
+              try {
+                const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
+                await enqueueTransactionalEmail({
+                  templateName: "refund-issued",
+                  recipientEmail: (invRow3 as any).parent_email,
+                  idempotencyKey: `refund-webhook-${(invRow3 as any).id}-${event.id}`,
+                  templateData: {
+                    parent_name: (invRow3 as any).parent_name,
+                    amount_display: `$${(totalRefunded / 100).toFixed(2)}`,
+                    is_full_refund: isFull,
+                    refunded_at: new Date().toLocaleString(),
+                  },
+                });
+              } catch (e) { console.error("[stripe-webhook] refund email failed", e); }
+              break;
+            }
             default:
               // Unhandled — acknowledged & logged.
               break;

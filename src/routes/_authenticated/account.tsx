@@ -51,6 +51,7 @@ const STATUS_LABEL: Record<string, string> = {
 function AccountPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
+  const [myInvoices, setMyInvoicesTop] = useState<any[] | null>(null);
   const [tab, setTab] = useState<"overview" | "students" | "invoices" | "profile">("overview");
   const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -59,13 +60,15 @@ function AccountPage() {
     setLoadState("loading");
     setLoadError(null);
     try {
-      const [s, c] = await Promise.all([
+      const [s, c, inv] = await Promise.all([
         getMyPortalSnapshot(),
         listClassesWithAvailability().catch(() => [] as ClassRow[]),
+        listMyInvoices().catch(() => [] as any[]),
       ]);
       if (!s) throw new Error("We couldn't load your account. Please try again.");
       setSnap(s);
       setClasses(c);
+      setMyInvoicesTop(inv as any[]);
       setLoadState("loaded");
     } catch (e: any) {
       console.error("[account] portal load failed:", e);
@@ -98,10 +101,14 @@ function AccountPage() {
     );
   }
 
-  const invoices = (snap.invoice_requests ?? []) as any[];
-  const balanceCents = invoices
-    .filter((r: any) => r.status === "pending" || r.status === "sent")
-    .reduce((sum: number, r: any) => sum + ((r.invoiced_amount_cents ?? (r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1))), 0);
+  const invoiceRequests = (snap.invoice_requests ?? []) as any[];
+  const realInvoices = (myInvoices ?? []) as any[];
+  // Real unpaid balance from actual invoices (status new / sent / overdue).
+  const balanceCents = realInvoices
+    .filter((inv: any) => inv.status === "new" || inv.status === "sent" || inv.status === "overdue")
+    .reduce((sum: number, inv: any) => sum + (inv.total_cents ?? 0), 0);
+  const unpaidInvoiceCount = realInvoices.filter((inv: any) => inv.status === "new" || inv.status === "sent" || inv.status === "overdue").length;
+  const paidInvoiceCount = realInvoices.filter((inv: any) => inv.status === "paid").length;
 
   const totalEnrollments = snap.students.reduce((n: number, st: any) => n + st.enrollments.filter((e: any) => e.status === "active").length, 0);
   const totalWaitlist = snap.students.reduce((n: number, st: any) => n + st.waitlist.length, 0);
@@ -128,10 +135,10 @@ function AccountPage() {
         </header>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatTile label="Est. balance" value={balanceCents > 0 ? fmtMoney(balanceCents) : "$0"} tone={balanceCents > 0 ? "warn" : "ok"} />
+          <StatTile label="Balance due" value={balanceCents > 0 ? fmtMoney(balanceCents) : "$0"} tone={balanceCents > 0 ? "warn" : "ok"} />
           <StatTile label="Enrollments" value={`${totalEnrollments}${totalWaitlist ? ` +${totalWaitlist}wl` : ""}`} />
-          <StatTile label="Invoices pending" value={String(invoices.filter((r: any) => r.status === "pending").length)} />
-          <StatTile label="Invoices paid" value={String(invoices.filter((r: any) => r.status === "paid").length)} tone="ok" />
+          <StatTile label="Invoices unpaid" value={String(unpaidInvoiceCount)} tone={unpaidInvoiceCount > 0 ? "warn" : undefined} />
+          <StatTile label="Invoices paid" value={String(paidInvoiceCount)} tone="ok" />
         </div>
 
         <nav className="-mx-1 flex gap-1 overflow-x-auto pb-1">

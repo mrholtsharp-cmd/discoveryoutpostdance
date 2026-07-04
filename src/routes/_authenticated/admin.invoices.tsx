@@ -16,10 +16,12 @@ import {
   type InvoiceWithLines,
 } from "@/lib/invoices.functions";
 import { regenerateInvoicePaymentLink } from "@/lib/payments.functions";
+import { refundInvoice } from "@/lib/refunds.functions";
+import { runMonthlyRenewalManually } from "@/lib/monthly-invoices.functions";
 import { invoiceAsText, downloadInvoicePdf, printInvoice } from "@/lib/invoice-format";
 import { centsToUSD } from "@/lib/business";
 import { LoadError } from "@/components/site/LoadError";
-import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil, Link2, RefreshCw, ExternalLink } from "lucide-react";
+import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil, Link2, RefreshCw, ExternalLink, Undo2, PlayCircle } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/invoices")({
   head: () => ({ meta: [{ title: "Invoices — Admin" }] }),
@@ -32,6 +34,8 @@ const STATUS_STYLES: Record<string, string> = {
   paid: "bg-emerald-100 text-emerald-800 border-emerald-200",
   overdue: "bg-red-100 text-red-800 border-red-200",
   cancelled: "bg-zinc-200 text-zinc-700 border-zinc-300",
+  refunded: "bg-purple-100 text-purple-800 border-purple-200",
+  partial_refund: "bg-purple-50 text-purple-700 border-purple-200",
 };
 
 function fmtDate(d: string): string {
@@ -45,12 +49,15 @@ function AdminInvoicesPage() {
   const updateFn = useServerFn(updateInvoiceAdmin);
   const emailFn = useServerFn(emailInvoice);
   const regenFn = useServerFn(regenerateInvoicePaymentLink);
+  const refundFn = useServerFn(refundInvoice);
+  const monthlyFn = useServerFn(runMonthlyRenewalManually);
 
   const q = useQuery({ queryKey: ["admin-invoices"], queryFn: () => listFn() });
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [semesterFilter, setSemesterFilter] = useState<string>("all");
   const [editing, setEditing] = useState<InvoiceWithLines | null>(null);
+  const [refunding, setRefunding] = useState<InvoiceWithLines | null>(null);
 
   const filtered = useMemo(() => {
     let out = q.data ?? [];
@@ -67,7 +74,7 @@ function AdminInvoicesPage() {
   }, [q.data, search, statusFilter, semesterFilter]);
 
   const counts = useMemo(() => {
-    const c: Record<string, number> = { new: 0, sent: 0, paid: 0, overdue: 0, cancelled: 0 };
+    const c: Record<string, number> = { new: 0, sent: 0, paid: 0, overdue: 0, cancelled: 0, refunded: 0, partial_refund: 0 };
     for (const r of q.data ?? []) c[r.status] = (c[r.status] ?? 0) + 1;
     return c;
   }, [q.data]);
@@ -123,6 +130,29 @@ function AdminInvoicesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const refundM = useMutation({
+    mutationFn: async (v: { invoiceId: string; amount_cents?: number; reason?: any; admin_note?: string }) => {
+      const r: any = await refundFn({ data: v });
+      if (r?.error) throw new Error(r.error);
+      return r;
+    },
+    onSuccess: (r: any) => {
+      toast.success(`Refunded $${((r.amount_cents ?? 0) / 100).toFixed(2)}`);
+      setRefunding(null);
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const monthlyM = useMutation({
+    mutationFn: async () => await monthlyFn(),
+    onSuccess: (r: any) => {
+      toast.success(`Monthly run: ${r.invoices_created} created, ${r.deduped} already existed, ${r.errors?.length ?? 0} errors`);
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   async function copyInvoice(inv: InvoiceWithLines) {
     try {
       await navigator.clipboard.writeText(invoiceAsText(inv));
@@ -141,18 +171,25 @@ function AdminInvoicesPage() {
         <Link to="/admin" className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
           <ArrowLeft className="h-3 w-3" /> Back to admin
         </Link>
-        <h1 className="font-display text-3xl mt-2">Invoices</h1>
-        <p className="text-sm text-muted-foreground">
-          Every registration auto-generates an invoice. Set status, email, download PDF, print, or copy the invoice below.
+        <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
+          <h1 className="font-display text-3xl">Invoices</h1>
+          <Button variant="outline" size="sm" onClick={() => monthlyM.mutate()} disabled={monthlyM.isPending}>
+            <PlayCircle className="h-3.5 w-3.5" />
+            {monthlyM.isPending ? "Running…" : "Run monthly renewal now"}
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          Every registration auto-generates an invoice. Monthly renewals run automatically on the 1st of each month; the button above runs them on demand (safe — idempotent per parent/month).
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
         <StatChip label="New" value={counts.new} tone="muted" />
         <StatChip label="Sent" value={counts.sent} tone="info" />
         <StatChip label="Paid" value={counts.paid} tone="good" />
         <StatChip label="Overdue" value={counts.overdue} tone="danger" />
         <StatChip label="Cancelled" value={counts.cancelled} />
+        <StatChip label="Refunded" value={counts.refunded + counts.partial_refund} tone="muted" />
       </div>
 
       <Card className="p-4">
@@ -170,6 +207,8 @@ function AdminInvoicesPage() {
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
+              <SelectItem value="refunded">Refunded</SelectItem>
+              <SelectItem value="partial_refund">Partial refund</SelectItem>
             </SelectContent>
           </Select>
           <Select value={semesterFilter} onValueChange={setSemesterFilter}>
@@ -251,6 +290,11 @@ function AdminInvoicesPage() {
                 {inv.status !== "sent" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: true })}><FileText className="h-3.5 w-3.5" /> Mark Sent</Button>}
                 {inv.status !== "paid" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "paid" })}><CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid</Button>}
                 {inv.status !== "overdue" && <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "overdue" })}><AlertCircle className="h-3.5 w-3.5" /> Overdue</Button>}
+                {(inv.status === "paid" || (inv.status as string) === "partial_refund") && (inv as any).stripe_payment_intent_id && (
+                  <Button size="sm" variant="outline" className="text-purple-800 border-purple-300" onClick={() => setRefunding(inv)}>
+                    <Undo2 className="h-3.5 w-3.5" /> Refund
+                  </Button>
+                )}
                 {inv.status !== "cancelled" && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (confirm("Cancel this invoice?")) setStatus.mutate({ id: inv.id, status: "cancelled" }); }}><XCircle className="h-3.5 w-3.5" /> Cancel</Button>}
               </div>
             </Card>
@@ -259,6 +303,7 @@ function AdminInvoicesPage() {
       )}
 
       <EditInvoiceDialog invoice={editing} onClose={() => setEditing(null)} onSave={(p) => editM.mutate(p)} saving={editM.isPending} />
+      <RefundDialog invoice={refunding} onClose={() => setRefunding(null)} onSubmit={(p: any) => refundM.mutate(p)} submitting={refundM.isPending} />
     </section>
   );
 }
@@ -360,6 +405,68 @@ function EditInvoiceDialog({
             if (!Number.isFinite(cents) || cents < 0) { toast.error("Invalid total"); return; }
             onSave({ id: invoice.id, total_cents: cents, due_date: due, notes: notes || null, admin_notes: adminNotes || null });
           }}>{saving ? "Saving…" : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+function RefundDialog({
+  invoice, onClose, onSubmit, submitting,
+}: { invoice: InvoiceWithLines | null; onClose: () => void; onSubmit: (p: { invoiceId: string; amount_cents?: number; reason?: any; admin_note?: string }) => void; submitting: boolean }) {
+  const alreadyRefunded = (invoice as any)?.refunded_amount_cents ?? 0;
+  const remaining = invoice ? (invoice.total_cents - alreadyRefunded) : 0;
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState<string>("requested_by_customer");
+  const [note, setNote] = useState("");
+  useMemo(() => {
+    if (invoice) { setAmount((remaining / 100).toFixed(2)); setNote(""); setReason("requested_by_customer"); }
+  }, [invoice?.id]);
+  if (!invoice) return null;
+  return (
+    <Dialog open={!!invoice} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Refund {invoice.invoice_number}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Paid: {centsToUSD(invoice.total_cents)}
+            {alreadyRefunded > 0 && <> · Already refunded: {centsToUSD(alreadyRefunded)}</>}
+            <> · Refundable: <strong>{centsToUSD(remaining)}</strong></>
+          </p>
+          <div>
+            <Label>Refund amount (USD)</Label>
+            <Input type="number" step="0.01" min="0.01" max={(remaining / 100).toFixed(2)} value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">Leave the full remaining amount for a full refund.</p>
+          </div>
+          <div>
+            <Label>Reason</Label>
+            <Select value={reason} onValueChange={setReason}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="requested_by_customer">Requested by customer</SelectItem>
+                <SelectItem value="duplicate">Duplicate</SelectItem>
+                <SelectItem value="fraudulent">Fraudulent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Internal note (optional)</Label>
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why is this being refunded?" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button disabled={submitting} onClick={() => {
+            const cents = Math.round(Number(amount) * 100);
+            if (!Number.isFinite(cents) || cents <= 0) { toast.error("Invalid amount"); return; }
+            if (cents > remaining) { toast.error("Exceeds refundable amount"); return; }
+            const isFull = cents === remaining;
+            onSubmit({
+              invoiceId: invoice.id,
+              amount_cents: isFull ? undefined : cents,
+              reason: reason as any,
+              admin_note: note || undefined,
+            });
+          }}>{submitting ? "Refunding…" : "Issue refund"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
