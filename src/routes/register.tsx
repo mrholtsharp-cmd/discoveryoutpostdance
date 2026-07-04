@@ -199,6 +199,18 @@ function RegisterWizard() {
   async function handleSubmitAll() {
     if (submitting) return;
     setSubmitting(true);
+    const submitStartedAt = performance.now();
+    // Client-side timeout fallback — if the server hangs, surface an error
+    // instead of leaving the button stuck on "Submitting…" forever.
+    const TIMEOUT_MS = 60_000;
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      setSubmitting(false);
+      toast.error(
+        "Registration is taking longer than expected. Please check your email or the parent portal — if your invoice is there, registration succeeded.",
+      );
+    }, TIMEOUT_MS);
     try {
       if (!state.tuition_plan || !state.invoice_preference) {
         throw new Error("Please choose a tuition plan and invoice preference before submitting.");
@@ -253,18 +265,34 @@ function RegisterWizard() {
           idempotency_key: getOrCreateIdempotencyKey(),
         },
       });
+      if (timedOut) return;
 
       const waitlisted = result.placements.filter((p) => p.placement === "waitlisted").length;
       const enrolled = result.placements.filter((p) => p.placement === "enrolled").length;
 
       const invNum = (result as any).invoice?.invoiceNumber;
-      toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted.${invNum ? ` Invoice ${invNum} created.` : ""}`);
+      const hasInvoice = !!invNum;
+      if (hasInvoice) {
+        toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted. Invoice ${invNum} created.`);
+      } else if (enrolled > 0) {
+        // Invoice generation failed non-fatally on the server; registration still succeeded.
+        toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted. Invoice will be emailed shortly.`);
+      } else {
+        toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted.`);
+      }
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.log(`[register] total submit time: ${Math.round(performance.now() - submitStartedAt)}ms`);
+      }
       sessionStorage.removeItem(WIZARD_STORAGE_KEY);
       try { sessionStorage.removeItem(WIZARD_IDEMPOTENCY_KEY); } catch {}
       navigate({ to: "/account" });
     } catch (e) {
+      if (timedOut) return;
       toast.error((e as Error).message);
     } finally {
+      window.clearTimeout(timeoutId);
+      if (timedOut) return;
       setSubmitting(false);
     }
   }
