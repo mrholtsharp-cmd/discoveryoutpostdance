@@ -38,6 +38,27 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               const invoiceId = s.metadata?.invoice_id;
               if (!invoiceId) break;
               if (s.payment_status !== "paid") break;
+              // Amount validation — never mark paid on mismatch.
+              const { data: invRow } = await supabaseAdmin
+                .from("invoices").select("id, total_cents, status").eq("id", invoiceId).maybeSingle();
+              if (!invRow) {
+                console.error("[stripe-webhook] invoice_id from Stripe not found:", invoiceId, "event", event.id);
+                break;
+              }
+              if ((invRow as any).status === "paid") {
+                console.log("[stripe-webhook] invoice already paid, skipping:", invoiceId);
+                break;
+              }
+              const paid = s.amount_total ?? 0;
+              const expected = (invRow as any).total_cents ?? 0;
+              if (paid !== expected) {
+                console.error("[stripe-webhook] AMOUNT MISMATCH invoice", invoiceId, "expected", expected, "paid", paid, "event", event.id);
+                await supabaseAdmin.from("invoices").update({
+                  payment_failure_reason: `Amount mismatch: paid ${paid}¢, expected ${expected}¢ (event ${event.id})`,
+                  updated_at: new Date().toISOString(),
+                } as never).eq("id", invoiceId);
+                break;
+              }
               await supabaseAdmin.from("invoices").update({
                 status: "paid",
                 paid_at: new Date().toISOString(),
@@ -74,6 +95,23 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
               const pi = event.data.object;
               const invoiceId = pi.metadata?.invoice_id;
               if (!invoiceId) break;
+              const { data: invRow2 } = await supabaseAdmin
+                .from("invoices").select("id, total_cents, status").eq("id", invoiceId).maybeSingle();
+              if (!invRow2) {
+                console.error("[stripe-webhook] PI invoice_id not found:", invoiceId, "event", event.id);
+                break;
+              }
+              if ((invRow2 as any).status === "paid") break;
+              const paid2 = pi.amount_received ?? pi.amount ?? 0;
+              const expected2 = (invRow2 as any).total_cents ?? 0;
+              if (paid2 !== expected2) {
+                console.error("[stripe-webhook] PI AMOUNT MISMATCH invoice", invoiceId, "expected", expected2, "paid", paid2, "event", event.id);
+                await supabaseAdmin.from("invoices").update({
+                  payment_failure_reason: `Amount mismatch: paid ${paid2}¢, expected ${expected2}¢ (event ${event.id})`,
+                  updated_at: new Date().toISOString(),
+                } as never).eq("id", invoiceId);
+                break;
+              }
               await supabaseAdmin.from("invoices").update({
                 status: "paid",
                 paid_at: new Date().toISOString(),

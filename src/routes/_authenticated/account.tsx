@@ -51,19 +51,50 @@ function AccountPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [classes, setClasses] = useState<ClassRow[] | null>(null);
   const [tab, setTab] = useState<"overview" | "students" | "invoices" | "profile">("overview");
+  const [loadState, setLoadState] = useState<"loading" | "loaded" | "error">("loading");
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   async function reload() {
-    const [s, c] = await Promise.all([
-      getMyPortalSnapshot().catch(() => null),
-      listClassesWithAvailability().catch(() => [] as ClassRow[]),
-    ]);
-    setSnap(s);
-    setClasses(c);
+    setLoadState("loading");
+    setLoadError(null);
+    try {
+      const [s, c] = await Promise.all([
+        getMyPortalSnapshot(),
+        listClassesWithAvailability().catch(() => [] as ClassRow[]),
+      ]);
+      if (!s) throw new Error("We couldn't load your account. Please try again.");
+      setSnap(s);
+      setClasses(c);
+      setLoadState("loaded");
+    } catch (e: any) {
+      console.error("[account] portal load failed:", e);
+      setLoadError(e?.message || "Something went wrong loading your account.");
+      setLoadState("error");
+    }
   }
   useEffect(() => { void reload(); }, []);
 
-  if (!snap) {
+  if (loadState === "loading") {
     return <Layout><section className="mx-auto max-w-3xl px-4 py-16"><p className="text-sm text-muted-foreground">Loading your portal…</p></section></Layout>;
+  }
+  if (loadState === "error" || !snap) {
+    return (
+      <Layout>
+        <section className="mx-auto max-w-3xl px-4 py-16 space-y-4">
+          <h1 className="font-display text-2xl">We couldn't load your account</h1>
+          <p className="text-sm text-muted-foreground">{loadError ?? "Unknown error."}</p>
+          <div className="flex gap-2">
+            <Button onClick={() => void reload()}>Try again</Button>
+            <Button variant="outline" onClick={async () => { await supabase.auth.signOut(); window.location.href = "/auth"; }}>
+              Sign out
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            If this keeps happening, contact <a className="underline" href="mailto:info@discoveryoutpost.dance">info@discoveryoutpost.dance</a>.
+          </p>
+        </section>
+      </Layout>
+    );
   }
 
   const invoices = (snap.invoice_requests ?? []) as any[];
