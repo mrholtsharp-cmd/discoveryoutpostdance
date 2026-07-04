@@ -29,6 +29,21 @@ export const Route = createFileRoute("/register")({
 });
 
 const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
+const WIZARD_IDEMPOTENCY_KEY = "do-register-wizard-v2-idem";
+
+function getOrCreateIdempotencyKey(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    let k = sessionStorage.getItem(WIZARD_IDEMPOTENCY_KEY);
+    if (!k) {
+      k = (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? `reg-${crypto.randomUUID()}`
+        : `reg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(WIZARD_IDEMPOTENCY_KEY, k);
+    }
+    return k;
+  } catch { return `reg-${Date.now()}`; }
+}
 
 type StudentDraft = {
   first_name: string;
