@@ -1247,6 +1247,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_enroll_or_waitlist: {
+        Args: { _class_id: string; _student_id: string }
+        Returns: {
+          placement: string
+          wait_position: number
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
