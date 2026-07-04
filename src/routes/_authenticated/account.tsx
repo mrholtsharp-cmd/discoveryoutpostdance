@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import { listMyInvoices } from "@/lib/invoices.functions";
 import { getMyInvoicePaymentLink } from "@/lib/payments.functions";
 import { getMyUnreadMessageCount } from "@/lib/messaging.functions";
@@ -41,13 +40,6 @@ function fmtDate(d: string | null | undefined) {
 
 type Snapshot = Awaited<ReturnType<typeof getMyPortalSnapshot>>;
 type ClassRow = Awaited<ReturnType<typeof listClassesWithAvailability>>[number];
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  sent: "Invoice sent",
-  paid: "Paid",
-  cancelled: "Cancelled",
-};
 
 function AccountPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
@@ -236,9 +228,7 @@ function OverviewTab({ snap }: { snap: Snapshot }) {
   );
 }
 
-function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void }) {
-  const [requesting, setRequesting] = useState(false);
-  const invoices = (snap.invoice_requests ?? []) as any[];
+function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onChange: () => void }) {
   const [myInvoices, setMyInvoices] = useState<any[] | null>(null);
   const [payingId, setPayingId] = useState<string | null>(null);
 
@@ -258,163 +248,72 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
     } finally { setPayingId(null); }
   }
 
-  const upcomingTuition = snap.students.flatMap((s: any) =>
-    s.enrollments
-      .filter((e: any) => e.status === "active" && e.class_schedule?.monthly_tuition_cents)
-      .map((e: any) => ({ student: s, e })),
-  );
-  const monthlyTotal = upcomingTuition.reduce((sum: number, x: any) => sum + (x.e.class_schedule.monthly_tuition_cents ?? 0), 0);
-
-  async function requestInvoices() {
-    if (upcomingTuition.length === 0) { toast.error("No enrolled tuition to invoice"); return; }
-    setRequesting(true);
-    try {
-      const r = await createInvoiceRequest({
-        data: {
-          items: upcomingTuition.map((x: any) => ({
-            classLabel: x.e.class_schedule.class_name,
-            monthlyAmountCents: x.e.class_schedule.monthly_tuition_cents,
-            studentName: `${x.student.first_name} ${x.student.last_name}`,
-          })),
-        },
-      });
-      if ("error" in r) throw new Error(r.error);
-      toast.success(`Invoice request submitted (${r.count} line${r.count > 1 ? "s" : ""})`);
-      onChange();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Could not submit"); }
-    finally { setRequesting(false); }
-  }
-
-  // Group invoice rows by request_group_id
-  const groups = new Map<string, any[]>();
-  for (const r of invoices) {
-    const key = r.request_group_id ?? `single:${r.id}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(r);
-  }
-  const grouped = Array.from(groups.values()).sort((a, b) =>
-    a[0].created_at < b[0].created_at ? 1 : -1,
-  );
+  const visible = (myInvoices ?? []).filter((inv: any) => inv.status !== "cancelled");
+  const unpaid = visible.filter((inv: any) => inv.status !== "paid");
+  const paid = visible.filter((inv: any) => inv.status === "paid");
 
   return (
     <div className="space-y-5">
-      {myInvoices && myInvoices.length > 0 && (
-        <div>
-          <h2 className="font-display text-lg mb-3">Your invoices</h2>
-          <div className="space-y-3">
-            {myInvoices.map((inv: any) => {
-              const isPaid = inv.status === "paid";
-              const isCancelled = inv.status === "cancelled";
-              const createdAt = inv.stripe_session_created_at ? new Date(inv.stripe_session_created_at) : null;
-              const businessExpired = createdAt ? (Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30 * 4) : false;
-              const canPay = !isPaid && !isCancelled && inv.total_cents > 0 && !businessExpired;
-              if (isCancelled) return null;
-              if (isPaid) {
-                return (
-                  <Card key={inv.id} className="p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-emerald-700">Paid</p>
-                        {inv.paid_at && (
-                          <p className="text-xs text-muted-foreground">{new Date(inv.paid_at).toLocaleDateString()}</p>
-                        )}
-                      </div>
-                      <p className="font-display text-xl">{fmtMoney(inv.total_cents)}</p>
-                    </div>
-                  </Card>
-                );
-              }
-              return (
-                <Card key={inv.id} className="p-5">
-                  <p className="font-display text-lg">You have a balance due</p>
-                  <p className="font-display text-3xl mt-1">{fmtMoney(inv.total_cents)}</p>
-                  {canPay ? (
-                    <Button className="rounded-full mt-4 w-full sm:w-auto" onClick={() => payInvoice(inv)} disabled={payingId === inv.id}>
-                      {payingId === inv.id ? "Opening secure checkout…" : "Pay Online"}
-                    </Button>
-                  ) : businessExpired ? (
-                    <p className="mt-3 text-sm text-muted-foreground">This payment link has expired. Please contact the studio for a new one.</p>
-                  ) : null}
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    Cash, Venmo, PayPal, and Cash App payments may be handled through the studio.
-                  </p>
-                </Card>
-              );
-            })}
-          </div>
+      <h2 className="font-display text-lg">Payments</h2>
+
+      {myInvoices === null ? (
+        <Card className="p-5"><p className="text-sm text-muted-foreground">Loading…</p></Card>
+      ) : visible.length === 0 ? (
+        <Card className="p-5">
+          <p className="text-sm text-muted-foreground">
+            No invoices yet. When the studio issues an invoice, you'll be able to pay it here.
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-3">
+          {unpaid.map((inv: any) => {
+            const createdAt = inv.stripe_session_created_at ? new Date(inv.stripe_session_created_at) : null;
+            const businessExpired = createdAt ? (Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30 * 4) : false;
+            const hasLink = !!inv.payment_url && !businessExpired;
+            const canPay = inv.total_cents > 0 && !businessExpired;
+            return (
+              <Card key={inv.id} className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Amount due</p>
+                    <p className="font-display text-3xl mt-1">{fmtMoney(inv.total_cents)}</p>
+                    {inv.due_date && (
+                      <p className="text-xs text-muted-foreground mt-1">Due {fmtDate(inv.due_date)}</p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="shrink-0">Unpaid</Badge>
+                </div>
+                {canPay && hasLink ? (
+                  <Button className="rounded-full mt-4 w-full sm:w-auto" onClick={() => payInvoice(inv)} disabled={payingId === inv.id}>
+                    {payingId === inv.id ? "Opening secure checkout…" : "Pay Online"}
+                  </Button>
+                ) : businessExpired ? (
+                  <p className="mt-3 text-sm text-muted-foreground">This payment link has expired. Please contact the studio for a new one.</p>
+                ) : (
+                  <p className="mt-4 text-sm text-muted-foreground">Payment link being prepared. Please check back shortly or contact the studio.</p>
+                )}
+                <p className="mt-3 text-xs text-muted-foreground">
+                  For Cash, Venmo, PayPal, or Cash App payments, please contact the studio.
+                </p>
+              </Card>
+            );
+          })}
+
+          {paid.map((inv: any) => (
+            <Card key={inv.id} className="p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium text-emerald-700">Paid</p>
+                  {inv.paid_at && (
+                    <p className="text-xs text-muted-foreground">{new Date(inv.paid_at).toLocaleDateString()}</p>
+                  )}
+                </div>
+                <p className="font-display text-xl">{fmtMoney(inv.total_cents)}</p>
+              </div>
+            </Card>
+          ))}
         </div>
       )}
-
-      <Card className="p-5">
-        <h2 className="font-display text-lg">Request an invoice</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Ask the studio to send you an invoice for the current month's tuition based on your
-          active enrollments.
-        </p>
-        {upcomingTuition.length > 0 && (
-          <div className="mt-3 space-y-2">
-            {upcomingTuition.map(({ student, e }: any) => (
-              <div key={e.id} className="flex items-center justify-between text-sm border-b border-border/60 py-1.5">
-                <span className="truncate">{e.class_schedule.class_name} · {student.first_name}</span>
-                <span className="font-medium">{fmtMoney(e.class_schedule.monthly_tuition_cents)}/mo</span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between pt-2 text-sm font-semibold">
-              <span>Monthly total</span>
-              <span>{fmtMoney(monthlyTotal)}</span>
-            </div>
-          </div>
-        )}
-        <Button className="mt-4 rounded-full" onClick={requestInvoices} disabled={requesting || upcomingTuition.length === 0}>
-          {requesting ? "Submitting…" : "Request invoice"}
-        </Button>
-      </Card>
-
-      <div>
-        <h2 className="font-display text-lg mb-3">Your invoice requests</h2>
-        {grouped.length === 0 ? (
-          <Card className="p-5"><p className="text-sm text-muted-foreground">No invoice requests yet.</p></Card>
-        ) : (
-          <div className="space-y-3">
-            {grouped.map((rows) => {
-              const status = rows[0].status;
-              const invoicedTotal = rows.reduce((s: number, r: any) => s + (r.invoiced_amount_cents ?? 0), 0);
-              const estimated = rows.reduce((s: number, r: any) => s + (r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1), 0);
-              return (
-                <Card key={rows[0].id} className="p-4">
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
-                    <div className="min-w-0">
-                      <p className="font-medium">Request from {fmtDate(rows[0].created_at)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {rows.length} line{rows.length === 1 ? "" : "s"} ·
-                        {invoicedTotal > 0 ? ` invoiced ${fmtMoney(invoicedTotal)}` : ` estimate ${fmtMoney(estimated)}`}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="shrink-0">{STATUS_LABEL[status] ?? status}</Badge>
-                  </div>
-                  <ul className="mt-3 text-sm space-y-1">
-                    {rows.map((r: any) => (
-                      <li key={r.id} className="flex items-center justify-between">
-                        <span className="truncate">
-                          {r.class_label}{r.student_name ? ` · ${r.student_name}` : ""}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {r.invoiced_amount_cents != null
-                            ? fmtMoney(r.invoiced_amount_cents)
-                            : `est. ${fmtMoney((r.monthly_amount_cents ?? 0) * (r.months_remaining ?? 1))}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  {rows[0].admin_notes && (
-                    <p className="mt-2 text-xs text-muted-foreground italic">Note: {rows[0].admin_notes}</p>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
