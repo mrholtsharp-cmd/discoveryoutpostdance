@@ -281,6 +281,14 @@ function RegisterWizard() {
         <WizardProgress current={state.step} />
 
         <Card className="mt-6 p-5 sm:p-7">
+          {state.step === 3 && classesQuery.isError && (
+            <LoadError
+              title="We couldn't load available classes"
+              message={(classesQuery.error as Error)?.message || "Please try again."}
+              onRetry={() => classesQuery.refetch()}
+              retrying={classesQuery.isFetching}
+            />
+          )}
           {state.step === 1 && <Step1Parent state={state.parent} update={updateParent} />}
           {state.step === 2 && (
             <Step2Students students={state.students} update={updateStudent} add={addStudent} remove={removeStudent} />
