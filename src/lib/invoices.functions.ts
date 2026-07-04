@@ -416,6 +416,19 @@ export const updateInvoiceAdmin = createServerFn({ method: "POST" })
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { id, ...patch } = data;
+    // Protect paid/cancelled invoices from accidental edits. Notes-only
+    // updates are still allowed for record keeping; amount / due-date
+    // changes are blocked.
+    const { data: currentRow } = await supabaseAdmin
+      .from("invoices").select("status").eq("id", id).maybeSingle();
+    const status = (currentRow as any)?.status;
+    if (status === "paid" || status === "cancelled") {
+      const financialKeys = ["total_cents", "subtotal_cents", "discount_cents", "due_date"] as const;
+      const attemptsFinancial = financialKeys.some((k) => (patch as any)[k] !== undefined);
+      if (attemptsFinancial) {
+        return { error: `Cannot modify a ${status} invoice. Notes may still be updated.` };
+      }
+    }
     // If the invoice is being edited (esp. amount), invalidate any live payment link
     // so no outdated link remains active. A fresh link is generated next time it's
     // emailed or the parent visits their portal.
