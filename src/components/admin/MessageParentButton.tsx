@@ -15,7 +15,7 @@ interface Props {
   parentName?: string | null;
   defaultSubject?: string;
   size?: "sm" | "default";
-  variant?: "default" | "outline" | "secondary";
+  variant?: "default" | "outline" | "secondary" | "ghost";
   label?: string;
 }
 
