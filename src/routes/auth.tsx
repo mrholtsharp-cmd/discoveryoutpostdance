@@ -28,42 +28,98 @@ function AuthPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return; // prevent duplicate submits
     setLoading(true);
-    if (mode === "forgot") {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
+
+    const isDev = import.meta.env.DEV;
+    const mark = (label: string, start: number) => {
+      if (isDev) console.log(`[auth] ${label} ${(performance.now() - start).toFixed(0)}ms`);
+    };
+
+    // 10s fallback so the UI can never stay stuck on "Please wait..."
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
       setLoading(false);
-      if (error) return toast.error(error.message);
-      toast.success("Password reset email sent — check your inbox.");
-      setMode("signin");
-      return;
-    }
-    if (mode === "signup") {
-      const { data: signUpData, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/account` },
-      });
-      setLoading(false);
-      if (error) return toast.error(error.message);
-      // If email confirmation is required there's no session yet — tell the
-      // user instead of bouncing them to /account where the auth gate kicks
-      // them straight back here.
-      if (!signUpData.session) {
-        toast.success("Account created — check your email to confirm, then sign in.");
+      toast.error("That took too long. Please try again.");
+    }, 10000);
+
+    const withTimeout = <T,>(p: PromiseLike<T>): Promise<T> =>
+      Promise.race([
+        Promise.resolve(p),
+        new Promise<T>((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out. Please try again.")), 10000),
+        ),
+      ]);
+
+    try {
+      if (mode === "forgot") {
+        const t = performance.now();
+        const { error } = await withTimeout(
+          supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: `${window.location.origin}/reset-password`,
+          }),
+        );
+        mark("resetPasswordForEmail", t);
+        if (error) throw error;
+        toast.success("Password reset email sent — check your inbox.");
         setMode("signin");
         return;
       }
-      toast.success("Account created — you're signed in.");
+
+      if (mode === "signup") {
+        const t = performance.now();
+        const { data: signUpData, error } = await withTimeout(
+          supabase.auth.signUp({
+            email,
+            password,
+            options: { emailRedirectTo: `${window.location.origin}/account` },
+          }),
+        );
+        mark("signUp", t);
+        if (error) throw error;
+        if (!signUpData.session) {
+          toast.success("Account created — check your email to confirm, then sign in.");
+          setMode("signin");
+          return;
+        }
+        toast.success("Account created — you're signed in.");
+        const tNav = performance.now();
+        navigate({ to: "/account", replace: true });
+        mark("navigate", tNav);
+        return;
+      }
+
+      const tSignIn = performance.now();
+      const { data: signInData, error } = await withTimeout(
+        supabase.auth.signInWithPassword({ email, password }),
+      );
+      mark("signInWithPassword", tSignIn);
+      if (error) throw error;
+      if (!signInData.session) throw new Error("Sign-in returned no session.");
+
+      // Confirm the session is actually persisted before we let the auth gate run.
+      const tSess = performance.now();
+      try {
+        await withTimeout(supabase.auth.getSession());
+      } catch (sessErr) {
+        if (isDev) console.warn("[auth] getSession failed (non-fatal)", sessErr);
+      }
+      mark("getSession", tSess);
+
+      toast.success("Welcome back");
+      const tNav = performance.now();
       navigate({ to: "/account", replace: true });
-      return;
+      mark("navigate", tNav);
+    } catch (err: any) {
+      if (timedOut) return; // toast already shown
+      const message = err?.message || "Something went wrong. Please try again.";
+      toast.error(message);
+      if (isDev) console.error("[auth] submit error", err);
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (!timedOut) setLoading(false);
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) return toast.error(error.message);
-    toast.success("Welcome back");
-    navigate({ to: "/account", replace: true });
   }
 
   return (
