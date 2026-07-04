@@ -15,6 +15,7 @@ import { listClassesWithAvailability, submitFullRegistration } from "@/lib/regis
 import { toast } from "sonner";
 import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign, CalendarRange, Wallet } from "lucide-react";
 import { REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
+import { LoadError } from "@/components/site/LoadError";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
