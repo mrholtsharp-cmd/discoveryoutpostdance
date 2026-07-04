@@ -432,6 +432,11 @@ function RegistrationsAdminPage() {
                                   <Button size="sm" variant="outline" asChild>
                                     <Link to="/admin/invoice-requests">Manage invoices</Link>
                                   </Button>
+                                  <MessageParentButton
+                                    parentEmail={r.email}
+                                    parentName={r.parent_name}
+                                    defaultSubject={`Regarding ${r.student_name}'s registration`}
+                                  />
                                 </div>
                               </div>
                             </div>
