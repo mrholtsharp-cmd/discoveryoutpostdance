@@ -290,7 +290,7 @@ function AdminInvoicesPage() {
                 {inv.status !== "sent" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: true })}><FileText className="h-3.5 w-3.5" /> Mark Sent</Button>}
                 {inv.status !== "paid" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "paid" })}><CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid</Button>}
                 {inv.status !== "overdue" && <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "overdue" })}><AlertCircle className="h-3.5 w-3.5" /> Overdue</Button>}
-                {(inv.status === "paid" || inv.status === "partial_refund") && (inv as any).stripe_payment_intent_id && (
+                {(inv.status === "paid" || (inv.status as string) === "partial_refund") && (inv as any).stripe_payment_intent_id && (
                   <Button size="sm" variant="outline" className="text-purple-800 border-purple-300" onClick={() => setRefunding(inv)}>
                     <Undo2 className="h-3.5 w-3.5" /> Refund
                   </Button>
@@ -303,7 +303,7 @@ function AdminInvoicesPage() {
       )}
 
       <EditInvoiceDialog invoice={editing} onClose={() => setEditing(null)} onSave={(p) => editM.mutate(p)} saving={editM.isPending} />
-      <RefundDialog invoice={refunding} onClose={() => setRefunding(null)} onSubmit={(p) => refundM.mutate(p)} submitting={refundM.isPending} />
+      <RefundDialog invoice={refunding} onClose={() => setRefunding(null)} onSubmit={(p: any) => refundM.mutate(p)} submitting={refundM.isPending} />
     </section>
   );
 }
