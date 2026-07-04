@@ -68,6 +68,27 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const authUserId = context.userId;
 
+    // Idempotency: if the client passes a key and we already created an invoice
+    // for that key, short-circuit and return the previous result. This makes
+    // refresh / double-submit / network retry safe.
+    if (data.idempotency_key) {
+      const { data: existingInv } = await supabaseAdmin
+        .from("invoices")
+        .select("id, invoice_number, parent_id")
+        .eq("idempotency_key", data.idempotency_key)
+        .maybeSingle();
+      if (existingInv) {
+        return {
+          ok: true,
+          parent_id: (existingInv as any).parent_id,
+          placements: [] as Array<{ student_id: string; class_id: string; placement: string; wait_position: number }>,
+          registration_ids: [] as string[],
+          invoice: { invoiceId: (existingInv as any).id, invoiceNumber: (existingInv as any).invoice_number },
+          deduped: true as const,
+        };
+      }
+    }
+
     // Upsert parent for this auth user
     const { data: existingParent } = await supabaseAdmin
       .from("parents")
