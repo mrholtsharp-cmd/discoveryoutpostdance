@@ -30,6 +30,7 @@ const submitSchema = z.object({
   invoice_preference: z.enum(["monthly", "semester"]).default("monthly"),
   cash_payment: z.boolean().default(false),
   notes: z.string().max(2000).optional().nullable(),
+  idempotency_key: z.string().trim().min(8).max(80).optional().nullable(),
 });
 
 export const listClassesWithAvailability = createServerFn({ method: "GET" })
