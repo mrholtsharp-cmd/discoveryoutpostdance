@@ -410,3 +410,65 @@ function EditInvoiceDialog({
     </Dialog>
   );
 }
+function RefundDialog({
+  invoice, onClose, onSubmit, submitting,
+}: { invoice: InvoiceWithLines | null; onClose: () => void; onSubmit: (p: { invoiceId: string; amount_cents?: number; reason?: any; admin_note?: string }) => void; submitting: boolean }) {
+  const alreadyRefunded = (invoice as any)?.refunded_amount_cents ?? 0;
+  const remaining = invoice ? (invoice.total_cents - alreadyRefunded) : 0;
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState<string>("requested_by_customer");
+  const [note, setNote] = useState("");
+  useMemo(() => {
+    if (invoice) { setAmount((remaining / 100).toFixed(2)); setNote(""); setReason("requested_by_customer"); }
+  }, [invoice?.id]);
+  if (!invoice) return null;
+  return (
+    <Dialog open={!!invoice} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Refund {invoice.invoice_number}</DialogTitle></DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Paid: {centsToUSD(invoice.total_cents)}
+            {alreadyRefunded > 0 && <> · Already refunded: {centsToUSD(alreadyRefunded)}</>}
+            <> · Refundable: <strong>{centsToUSD(remaining)}</strong></>
+          </p>
+          <div>
+            <Label>Refund amount (USD)</Label>
+            <Input type="number" step="0.01" min="0.01" max={(remaining / 100).toFixed(2)} value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">Leave the full remaining amount for a full refund.</p>
+          </div>
+          <div>
+            <Label>Reason</Label>
+            <Select value={reason} onValueChange={setReason}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="requested_by_customer">Requested by customer</SelectItem>
+                <SelectItem value="duplicate">Duplicate</SelectItem>
+                <SelectItem value="fraudulent">Fraudulent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Internal note (optional)</Label>
+            <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Why is this being refunded?" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button disabled={submitting} onClick={() => {
+            const cents = Math.round(Number(amount) * 100);
+            if (!Number.isFinite(cents) || cents <= 0) { toast.error("Invalid amount"); return; }
+            if (cents > remaining) { toast.error("Exceeds refundable amount"); return; }
+            const isFull = cents === remaining;
+            onSubmit({
+              invoiceId: invoice.id,
+              amount_cents: isFull ? undefined : cents,
+              reason: reason as any,
+              admin_note: note || undefined,
+            });
+          }}>{submitting ? "Refunding…" : "Issue refund"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
