@@ -159,50 +159,9 @@ export async function generateMonthlyRenewalInvoices(now: Date = new Date()): Pr
       const { error: linesErr } = await supabaseAdmin.from("invoice_line_items").insert(lineRows as never);
       if (linesErr) throw new Error(linesErr.message);
 
-      // Best-effort payment link + email
-      let paymentUrl: string | null = null;
-      try {
-        const link = await ensureInvoicePaymentLink(inv.id);
-        if (!("error" in link)) paymentUrl = link.payment_url;
-      } catch { /* noop */ }
-
-      try {
-        const { data: full } = await supabaseAdmin
-          .from("invoices")
-          .select("*, line_items:invoice_line_items(*)")
-          .eq("id", inv.id).single();
-        const flat: any = full;
-        await enqueueTransactionalEmail({
-          templateName: "invoice-sent",
-          recipientEmail: meta.email,
-          idempotencyKey: `invoice-sent-${inv.id}`,
-          templateData: {
-            invoice_number: flat.invoice_number,
-            invoice_date: flat.invoice_date,
-            due_date: flat.due_date,
-            parent_name: flat.parent_name,
-            semester_label: flat.semester_label,
-            tuition_plan: flat.tuition_plan,
-            invoice_preference: flat.invoice_preference,
-            cash_payment: flat.cash_payment,
-            subtotal_cents: flat.subtotal_cents,
-            discount_cents: flat.discount_cents,
-            total_cents: flat.total_cents,
-            line_items: (flat.line_items ?? []).slice().sort((a: any, b: any) => a.sort_order - b.sort_order).map((l: any) => ({
-              description: l.description, student_name: l.student_name,
-              amount_cents: l.amount_cents, category: l.category,
-            })),
-            payment_url: paymentUrl,
-          },
-        });
-        await supabaseAdmin.from("invoices").update({
-          emailed_at: new Date().toISOString(),
-          status: "sent",
-          sent_at: new Date().toISOString(),
-        } as never).eq("id", inv.id);
-      } catch (e) {
-        console.error("[monthly-renewal] email failed for", parentId, e);
-      }
+      // Monthly renewal creates the invoice as a draft (status "new"). An
+      // admin must click "Send Invoice" from the admin dashboard to
+      // generate the Stripe link and email the parent.
 
       result.invoices_created++;
     } catch (e: any) {
