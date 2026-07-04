@@ -30,6 +30,7 @@ const submitSchema = z.object({
   invoice_preference: z.enum(["monthly", "semester"]).default("monthly"),
   cash_payment: z.boolean().default(false),
   notes: z.string().max(2000).optional().nullable(),
+  idempotency_key: z.string().trim().min(8).max(80).optional().nullable(),
 });
 
 export const listClassesWithAvailability = createServerFn({ method: "GET" })
@@ -66,6 +67,27 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const authUserId = context.userId;
+
+    // Idempotency: if the client passes a key and we already created an invoice
+    // for that key, short-circuit and return the previous result. This makes
+    // refresh / double-submit / network retry safe.
+    if (data.idempotency_key) {
+      const { data: existingInv } = await supabaseAdmin
+        .from("invoices")
+        .select("id, invoice_number, parent_id")
+        .eq("idempotency_key", data.idempotency_key)
+        .maybeSingle();
+      if (existingInv) {
+        return {
+          ok: true,
+          parent_id: (existingInv as any).parent_id,
+          placements: [] as Array<{ student_id: string; class_id: string; placement: string; wait_position: number }>,
+          registration_ids: [] as string[],
+          invoice: { invoiceId: (existingInv as any).id, invoiceNumber: (existingInv as any).invoice_number },
+          deduped: true as const,
+        };
+      }
+    }
 
     // Upsert parent for this auth user
     const { data: existingParent } = await supabaseAdmin
@@ -118,21 +140,46 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       monthly_cents: number; semester_cents: number;
     }> = [];
     for (const s of data.students) {
-      const { data: stu, error: sErr } = await supabaseAdmin
+      // Dedupe on (parent_id, first_name, last_name, date_of_birth). This
+      // prevents duplicate student rows if a submission is retried without
+      // an idempotency key (e.g. legacy client, network retry).
+      let studentId: string;
+      const { data: existingStu } = await supabaseAdmin
         .from("students")
-        .insert({
-          parent_id: parentId,
-          first_name: s.first_name,
-          last_name: s.last_name,
-          date_of_birth: s.date_of_birth,
+        .select("id")
+        .eq("parent_id", parentId)
+        .eq("first_name", s.first_name)
+        .eq("last_name", s.last_name)
+        .eq("date_of_birth", s.date_of_birth)
+        .maybeSingle();
+      if (existingStu) {
+        studentId = (existingStu as any).id;
+        // Refresh mutable metadata in case it changed.
+        await supabaseAdmin.from("students").update({
           grade: s.grade ?? null,
           allergies: s.allergies ?? null,
           medical_notes: s.medical_notes ?? null,
           shirt_size: s.shirt_size ?? null,
-        })
-        .select("id")
-        .single();
-      if (sErr || !stu) throw new Error(sErr?.message ?? "Could not create student");
+        } as never).eq("id", studentId);
+      } else {
+        const { data: stu, error: sErr } = await supabaseAdmin
+          .from("students")
+          .insert({
+            parent_id: parentId,
+            first_name: s.first_name,
+            last_name: s.last_name,
+            date_of_birth: s.date_of_birth,
+            grade: s.grade ?? null,
+            allergies: s.allergies ?? null,
+            medical_notes: s.medical_notes ?? null,
+            shirt_size: s.shirt_size ?? null,
+          })
+          .select("id")
+          .single();
+        if (sErr || !stu) throw new Error(sErr?.message ?? "Could not create student");
+        studentId = stu.id;
+      }
+      const stu = { id: studentId };
 
       // Compute age (int, required by registrations table)
       const dob = new Date(s.date_of_birth + "T00:00:00");
@@ -217,6 +264,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
           cashPayment: data.cash_payment,
           notes: data.notes ?? null,
           enrollments: enrolledForInvoice,
+          idempotencyKey: data.idempotency_key ?? null,
         });
       } catch (e) {
         console.error("Invoice generation failed:", e);

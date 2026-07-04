@@ -1,0 +1,2 @@
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS invoices_idempotency_key_key ON public.invoices(idempotency_key) WHERE idempotency_key IS NOT NULL;

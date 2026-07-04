@@ -3,6 +3,7 @@ import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { BUSINESS, REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
+import { PaymentMethods } from "@/components/site/PaymentMethods";
 
 export const Route = createFileRoute("/tuition")({
   head: () => ({
@@ -70,6 +71,10 @@ function TuitionPage() {
             <li>Registration fee is charged once per student per semester; recital fee is charged once per student.</li>
           </ul>
         </Card>
+
+        <div className="mt-6">
+          <PaymentMethods hideStripe variant="full" />
+        </div>
       </section>
     </Layout>
   );

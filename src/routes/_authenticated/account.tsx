@@ -23,6 +23,7 @@ import {
   leaveWaitlist,
 } from "@/lib/parent-portal.functions";
 import { listClassesWithAvailability } from "@/lib/registration-v2.functions";
+import { PaymentMethods } from "@/components/site/PaymentMethods";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({ meta: [{ title: "Parent Portal — Discovery Outpost" }, { name: "robots", content: "noindex" }] }),
@@ -323,6 +324,17 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
                   )}
                   {businessExpired && !isPaid && !isCancelled && (
                     <p className="mt-2 text-xs text-muted-foreground">This payment link has expired. Ask the studio to send you a new one.</p>
+                  )}
+                  {!isPaid && !isCancelled && (
+                    <div className="mt-3">
+                      <PaymentMethods
+                        paymentUrl={canPay ? inv.payment_url : null}
+                        invoiceNumber={inv.invoice_number}
+                        totalCents={inv.total_cents}
+                        onPayStripe={canPay ? () => payInvoice(inv) : undefined}
+                        hideStripe
+                      />
+                    </div>
                   )}
                 </Card>
               );

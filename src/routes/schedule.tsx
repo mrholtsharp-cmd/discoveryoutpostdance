@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { LoadError } from "@/components/site/LoadError";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
 import { listSchedule } from "@/lib/schedule.functions";
@@ -19,7 +20,11 @@ export const Route = createFileRoute("/schedule")({
 });
 
 function SchedulePage() {
-  const { data, isLoading } = useQuery({ queryKey: ["schedule"], queryFn: () => listSchedule() });
+  const { data, isLoading, isError, refetch, isFetching } = useQuery({
+    queryKey: ["schedule"],
+    queryFn: () => listSchedule(),
+    retry: 1,
+  });
   const dayOrder = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
   const byDay = (data ?? []).reduce<Record<string, any[]>>((acc, r) => {
     (acc[r.day] ||= []).push(r); return acc;
@@ -32,7 +37,16 @@ function SchedulePage() {
         <p className="mt-4 text-muted-foreground max-w-xl">
           Our weekly rotation of Tap, Jazz, and Ballet classes. Times subject to change — register to confirm your spot.
         </p>
-        {isLoading ? (
+        {isError ? (
+          <div className="mt-12">
+            <LoadError
+              title="We couldn't load the class schedule"
+              message="Please try again in a moment."
+              onRetry={() => refetch()}
+              retrying={isFetching}
+            />
+          </div>
+        ) : isLoading ? (
           <p className="mt-12 text-muted-foreground">Loading schedule…</p>
         ) : dayOrder.filter((d) => byDay[d]).length === 0 ? (
           <Card className="mt-12 p-8 text-center border-border">

@@ -18,6 +18,7 @@ import {
 import { regenerateInvoicePaymentLink } from "@/lib/payments.functions";
 import { invoiceAsText, downloadInvoicePdf, printInvoice } from "@/lib/invoice-format";
 import { centsToUSD } from "@/lib/business";
+import { LoadError } from "@/components/site/LoadError";
 import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil, Link2, RefreshCw, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/invoices")({
@@ -181,7 +182,14 @@ function AdminInvoicesPage() {
         </div>
       </Card>
 
-      {q.isLoading ? (
+      {q.isError ? (
+        <LoadError
+          title="We couldn't load invoices"
+          message={(q.error as Error)?.message || "Please try again."}
+          onRetry={() => q.refetch()}
+          retrying={q.isFetching}
+        />
+      ) : q.isLoading ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">Loading…</Card>
       ) : filtered.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">No invoices match.</Card>
@@ -237,7 +245,9 @@ function AdminInvoicesPage() {
                 <Button size="sm" variant="outline" onClick={() => printInvoice(inv)}><Printer className="h-3.5 w-3.5" /> Print</Button>
                 <Button size="sm" variant="outline" onClick={() => downloadInvoicePdf(inv)}><Download className="h-3.5 w-3.5" /> PDF</Button>
                 <Button size="sm" variant="outline" onClick={() => emailM.mutate(inv.id)} disabled={emailM.isPending}><Mail className="h-3.5 w-3.5" /> Email</Button>
-                <Button size="sm" variant="outline" onClick={() => setEditing(inv)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                {inv.status !== "paid" && inv.status !== "cancelled" && (
+                  <Button size="sm" variant="outline" onClick={() => setEditing(inv)}><Pencil className="h-3.5 w-3.5" /> Edit</Button>
+                )}
                 {inv.status !== "sent" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: true })}><FileText className="h-3.5 w-3.5" /> Mark Sent</Button>}
                 {inv.status !== "paid" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "paid" })}><CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid</Button>}
                 {inv.status !== "overdue" && <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "overdue" })}><AlertCircle className="h-3.5 w-3.5" /> Overdue</Button>}

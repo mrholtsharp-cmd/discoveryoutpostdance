@@ -72,6 +72,7 @@ export type BuildInvoiceInput = {
   invoicePreference: "monthly" | "semester";
   cashPayment: boolean;
   notes?: string | null;
+  idempotencyKey?: string | null;
   // one entry per (student, enrolled class)
   enrollments: Array<{
     student_id: string;
@@ -89,6 +90,18 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
   const seasonYear = season.seasonYear;
 
   if (input.enrollments.length === 0) return null;
+
+  // Idempotency: if an invoice with this key already exists, return it.
+  if (input.idempotencyKey) {
+    const { data: existing } = await supabaseAdmin
+      .from("invoices")
+      .select("id, invoice_number")
+      .eq("idempotency_key", input.idempotencyKey)
+      .maybeSingle();
+    if (existing) {
+      return { invoiceId: (existing as any).id, invoiceNumber: (existing as any).invoice_number };
+    }
+  }
 
   // Build line items
   const lines: Array<Omit<InvoiceLineItem, "id" | "invoice_id"> & { invoice_id?: string }> = [];
@@ -239,6 +252,7 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       status: "new",
       due_date: defaultDueDateISO(),
       notes: input.notes ?? null,
+      idempotency_key: input.idempotencyKey ?? null,
     } as never)
     .select("id, invoice_number")
     .single();
@@ -248,6 +262,43 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
   const lineRows = lines.map((l) => ({ ...l, invoice_id: inv.id }));
   const { error: linesErr } = await supabaseAdmin.from("invoice_line_items").insert(lineRows as never);
   if (linesErr) throw new Error(linesErr.message);
+
+  // 8. Best-effort: generate Stripe link + send invoice email. Never fail
+  //    registration if Stripe or email are unavailable — the invoice row
+  //    exists and is visible in the parent portal / admin either way.
+  let paymentUrl: string | null = null;
+  if (total > 0) {
+    try {
+      const link = await ensureInvoicePaymentLink(inv.id);
+      if (!("error" in link)) paymentUrl = link.payment_url;
+    } catch (e) {
+      console.error("[buildInvoiceForRegistration] Stripe link failed (non-fatal):", e);
+    }
+  }
+  try {
+    // Re-read the invoice with its line items to build the email payload.
+    const { data: full } = await supabaseAdmin
+      .from("invoices")
+      .select("*, line_items:invoice_line_items(*)")
+      .eq("id", inv.id)
+      .single();
+    if (full) {
+      const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
+      await enqueueTransactionalEmail({
+        templateName: "invoice-sent",
+        recipientEmail: input.parentEmail,
+        idempotencyKey: `invoice-sent-${inv.id}`,
+        templateData: { ...invoiceEmailPayload(full as unknown as InvoiceWithLines), payment_url: paymentUrl },
+      });
+      await supabaseAdmin.from("invoices").update({
+        emailed_at: new Date().toISOString(),
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      } as never).eq("id", inv.id);
+    }
+  } catch (e) {
+    console.error("[buildInvoiceForRegistration] Email send failed (non-fatal):", e);
+  }
 
   return { invoiceId: inv.id, invoiceNumber: inv.invoice_number };
 }
@@ -365,6 +416,19 @@ export const updateInvoiceAdmin = createServerFn({ method: "POST" })
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { id, ...patch } = data;
+    // Protect paid/cancelled invoices from accidental edits. Notes-only
+    // updates are still allowed for record keeping; amount / due-date
+    // changes are blocked.
+    const { data: currentRow } = await supabaseAdmin
+      .from("invoices").select("status").eq("id", id).maybeSingle();
+    const status = (currentRow as any)?.status;
+    if (status === "paid" || status === "cancelled") {
+      const financialKeys = ["total_cents", "subtotal_cents", "discount_cents", "due_date"] as const;
+      const attemptsFinancial = financialKeys.some((k) => (patch as any)[k] !== undefined);
+      if (attemptsFinancial) {
+        return { error: `Cannot modify a ${status} invoice. Notes may still be updated.` };
+      }
+    }
     // If the invoice is being edited (esp. amount), invalidate any live payment link
     // so no outdated link remains active. A fresh link is generated next time it's
     // emailed or the parent visits their portal.

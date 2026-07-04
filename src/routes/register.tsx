@@ -15,6 +15,7 @@ import { listClassesWithAvailability, submitFullRegistration } from "@/lib/regis
 import { toast } from "sonner";
 import { Check, ChevronLeft, ChevronRight, Plus, Trash2, Users, GraduationCap, CalendarDays, ClipboardCheck, Mail, DollarSign, CalendarRange, Wallet } from "lucide-react";
 import { REGISTRATION_FEE_CENTS, RECITAL_FEE_CENTS, CASH_DISCOUNT_PER_CLASS_CENTS, SEMESTER_MONTHS, centsToUSD } from "@/lib/business";
+import { LoadError } from "@/components/site/LoadError";
 
 export const Route = createFileRoute("/register")({
   head: () => ({
@@ -29,6 +30,21 @@ export const Route = createFileRoute("/register")({
 });
 
 const WIZARD_STORAGE_KEY = "do-register-wizard-v2";
+const WIZARD_IDEMPOTENCY_KEY = "do-register-wizard-v2-idem";
+
+function getOrCreateIdempotencyKey(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    let k = sessionStorage.getItem(WIZARD_IDEMPOTENCY_KEY);
+    if (!k) {
+      k = (typeof crypto !== "undefined" && crypto.randomUUID)
+        ? `reg-${crypto.randomUUID()}`
+        : `reg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      sessionStorage.setItem(WIZARD_IDEMPOTENCY_KEY, k);
+    }
+    return k;
+  } catch { return `reg-${Date.now()}`; }
+}
 
 type StudentDraft = {
   first_name: string;
@@ -115,6 +131,7 @@ function RegisterWizard() {
   const classesQuery = useQuery({
     queryKey: ["wizard-classes"],
     queryFn: () => listClassesWithAvailability(),
+    retry: 1,
   });
 
   const submitFn = useServerFn(submitFullRegistration);
@@ -233,6 +250,7 @@ function RegisterWizard() {
           invoice_preference: state.invoice_preference!,
           cash_payment: state.cash_payment,
           notes: state.notes || null,
+          idempotency_key: getOrCreateIdempotencyKey(),
         },
       });
 
@@ -242,6 +260,7 @@ function RegisterWizard() {
       const invNum = (result as any).invoice?.invoiceNumber;
       toast.success(`Registration complete — ${enrolled} enrolled, ${waitlisted} waitlisted.${invNum ? ` Invoice ${invNum} created.` : ""}`);
       sessionStorage.removeItem(WIZARD_STORAGE_KEY);
+      try { sessionStorage.removeItem(WIZARD_IDEMPOTENCY_KEY); } catch {}
       navigate({ to: "/account" });
     } catch (e) {
       toast.error((e as Error).message);
@@ -262,6 +281,14 @@ function RegisterWizard() {
         <WizardProgress current={state.step} />
 
         <Card className="mt-6 p-5 sm:p-7">
+          {state.step === 3 && classesQuery.isError && (
+            <LoadError
+              title="We couldn't load available classes"
+              message={(classesQuery.error as Error)?.message || "Please try again."}
+              onRetry={() => classesQuery.refetch()}
+              retrying={classesQuery.isFetching}
+            />
+          )}
           {state.step === 1 && <Step1Parent state={state.parent} update={updateParent} />}
           {state.step === 2 && (
             <Step2Students students={state.students} update={updateStudent} add={addStudent} remove={removeStudent} />

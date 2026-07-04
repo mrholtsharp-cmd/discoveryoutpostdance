@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
+import { LoadError } from "@/components/site/LoadError";
 import { getAdminOverview } from "@/lib/admin-v2.functions";
 import {
   Users, UsersRound, FileText, DollarSign, CheckCircle2, Clock,
@@ -40,8 +41,21 @@ function StatCard({ icon: Icon, label, value, hint, tone, to }: {
 
 function AdminPage() {
   const overview = useServerFn(getAdminOverview);
-  const q = useQuery({ queryKey: ["admin-overview-v2"], queryFn: () => overview() });
+  const q = useQuery({ queryKey: ["admin-overview-v2"], queryFn: () => overview(), retry: 1 });
   const data = q.data;
+
+  if (q.isError) {
+    return (
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+        <LoadError
+          title="We couldn't load the admin dashboard"
+          message={(q.error as Error)?.message || "Please try again in a moment."}
+          onRetry={() => q.refetch()}
+          retrying={q.isFetching}
+        />
+      </section>
+    );
+  }
 
   if (q.isLoading || !data) {
     return (
