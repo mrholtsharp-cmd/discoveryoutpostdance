@@ -322,7 +322,7 @@ function InvoicesTab({ snap, onChange }: { snap: Snapshot; onChange: () => void 
                   {canPay && (
                     <div className="mt-3">
                       <Button className="rounded-full w-full sm:w-auto" onClick={() => payInvoice(inv)} disabled={payingId === inv.id}>
-                        {payingId === inv.id ? "Opening secure checkout…" : `Pay Invoice — ${fmtMoney(inv.total_cents)}`}
+                        {payingId === inv.id ? "Opening secure checkout…" : `Pay Now — ${fmtMoney(inv.total_cents)}`}
                       </Button>
                     </div>
                   )}

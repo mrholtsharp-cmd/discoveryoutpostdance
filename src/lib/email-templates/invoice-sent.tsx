@@ -156,7 +156,7 @@ const Email = (props: Props) => {
                   display: 'inline-block',
                 }}
               >
-                Pay Invoice — {money(total_cents)}
+                Pay Online with Card — {money(total_cents)}
               </Button>
               <Text style={{ ...val, color: '#6b7280', fontSize: 12, marginTop: 10 }}>
                 Or copy this secure link:<br />
