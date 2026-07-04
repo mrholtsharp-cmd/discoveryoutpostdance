@@ -134,9 +134,16 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       }
       parentId = byEmail.id;
       reusedExistingByEmail = true;
-      const patch: Record<string, unknown> = {
+      const patch: {
+        email: string;
+        phone: string | null;
+        address: string | null;
+        auth_user_id?: string;
+        first_name?: string;
+        last_name?: string;
+      } = {
         email: normalizedEmail,
-        phone: data.parent.phone,
+        phone: data.parent.phone ?? null,
         address: data.parent.address ?? null,
       };
       if (!byEmail.auth_user_id) patch.auth_user_id = authUserId;
