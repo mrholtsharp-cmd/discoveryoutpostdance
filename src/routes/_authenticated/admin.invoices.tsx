@@ -186,13 +186,13 @@ function AdminInvoicesPage() {
           </div>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
-          Every registration auto-generates an invoice. Monthly renewals run automatically on the 1st of each month; the button above runs them on demand (safe — idempotent per parent/month).
+          Registrations and monthly renewals auto-generate <strong>draft invoices</strong> for you to review. Click <strong>Send Invoice</strong> to generate the Stripe payment link, email the parent, and make the invoice payable in their portal.
         </p>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <StatChip label="New" value={counts.new} tone="muted" />
-        <StatChip label="Sent" value={counts.sent} tone="info" />
+        <StatChip label="Draft / Not Sent" value={counts.new} tone="muted" />
+        <StatChip label="Sent / Unpaid" value={counts.sent} tone="info" />
         <StatChip label="Paid" value={counts.paid} tone="good" />
         <StatChip label="Overdue" value={counts.overdue} tone="danger" />
         <StatChip label="Cancelled" value={counts.cancelled} />
@@ -209,8 +209,8 @@ function AdminInvoicesPage() {
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
-              <SelectItem value="new">New</SelectItem>
-              <SelectItem value="sent">Sent</SelectItem>
+            <SelectItem value="new">Draft / Not Sent</SelectItem>
+            <SelectItem value="sent">Sent / Unpaid</SelectItem>
               <SelectItem value="paid">Paid</SelectItem>
               <SelectItem value="overdue">Overdue</SelectItem>
               <SelectItem value="cancelled">Cancelled</SelectItem>
