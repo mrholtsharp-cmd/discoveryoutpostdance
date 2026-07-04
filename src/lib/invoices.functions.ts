@@ -268,13 +268,19 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
   //    exists and is visible in the parent portal / admin either way.
   let paymentUrl: string | null = null;
   if (total > 0) {
+    const tStripe = Date.now();
     try {
       const link = await ensureInvoicePaymentLink(inv.id);
       if (!("error" in link)) paymentUrl = link.payment_url;
     } catch (e) {
       console.error("[buildInvoiceForRegistration] Stripe link failed (non-fatal):", e);
     }
+    if (process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.log(`[invoice] stripe_link: ${Date.now() - tStripe}ms url=${paymentUrl ? "ok" : "missing"}`);
+    }
   }
+  const tEmail = Date.now();
   try {
     // Re-read the invoice with its line items to build the email payload.
     const { data: full } = await supabaseAdmin
@@ -298,6 +304,10 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
     }
   } catch (e) {
     console.error("[buildInvoiceForRegistration] Email send failed (non-fatal):", e);
+  }
+  if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line no-console
+    console.log(`[invoice] invoice_email_send: ${Date.now() - tEmail}ms`);
   }
 
   return { invoiceId: inv.id, invoiceNumber: inv.invoice_number };
