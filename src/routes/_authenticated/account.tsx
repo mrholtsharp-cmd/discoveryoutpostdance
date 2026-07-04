@@ -23,6 +23,7 @@ import {
   leaveWaitlist,
 } from "@/lib/parent-portal.functions";
 import { listClassesWithAvailability } from "@/lib/registration-v2.functions";
+import { PaymentMethods } from "@/components/site/PaymentMethods";
 
 export const Route = createFileRoute("/_authenticated/account")({
   head: () => ({ meta: [{ title: "Parent Portal — Discovery Outpost" }, { name: "robots", content: "noindex" }] }),
