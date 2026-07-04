@@ -205,7 +205,8 @@ export const adminSendMessageToParent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z.object({
-      parent_id: z.string().uuid(),
+      parent_id: z.string().uuid().optional(),
+      parent_email: z.string().email().optional(),
       subject: z.string().trim().min(1).max(200),
       body: z.string().trim().min(1).max(5000),
       delivery: z.enum(["portal", "email", "both"]).default("both"),
@@ -216,9 +217,17 @@ export const adminSendMessageToParent = createServerFn({ method: "POST" })
     if (!(await isAdmin(context))) return { error: "Forbidden" };
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    const { data: parent } = await supabaseAdmin
-      .from("parents").select("id, email, first_name, last_name").eq("id", data.parent_id).maybeSingle();
-    if (!parent) return { error: "Parent not found" };
+    let parent: any = null;
+    if (data.parent_id) {
+      const { data: p } = await supabaseAdmin
+        .from("parents").select("id, email, first_name, last_name").eq("id", data.parent_id).maybeSingle();
+      parent = p;
+    } else if (data.parent_email) {
+      const { data: p } = await supabaseAdmin
+        .from("parents").select("id, email, first_name, last_name").ilike("email", data.parent_email.trim()).maybeSingle();
+      parent = p;
+    }
+    if (!parent) return { error: "No parent account found for that email — send an email only or invite them to register first." };
 
     let threadId = data.thread_id;
     if (!threadId) {
