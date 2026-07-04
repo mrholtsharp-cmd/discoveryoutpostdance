@@ -182,7 +182,14 @@ function AdminInvoicesPage() {
         </div>
       </Card>
 
-      {q.isLoading ? (
+      {q.isError ? (
+        <LoadError
+          title="We couldn't load invoices"
+          message={(q.error as Error)?.message || "Please try again."}
+          onRetry={() => q.refetch()}
+          retrying={q.isFetching}
+        />
+      ) : q.isLoading ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">Loading…</Card>
       ) : filtered.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">No invoices match.</Card>
