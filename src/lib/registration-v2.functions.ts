@@ -67,6 +67,16 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const authUserId = context.userId;
+    const devTiming = process.env.NODE_ENV !== "production";
+    const t0 = Date.now();
+    const stepTimes: Record<string, number> = {};
+    const mark = (label: string, since: number) => {
+      if (devTiming) {
+        stepTimes[label] = Date.now() - since;
+        // eslint-disable-next-line no-console
+        console.log(`[register] ${label}: ${stepTimes[label]}ms`);
+      }
+    };
 
     // Idempotency: if the client passes a key and we already created an invoice
     // for that key, short-circuit and return the previous result. This makes
@@ -89,6 +99,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       }
     }
 
+    const tParent = Date.now();
     // Normalize email for lookup + insert. The parents table has a
     // UNIQUE(lower(email)) index (parents_email_lower_idx), so we must
     // get-or-create to avoid duplicate-key errors on repeat registrations.
@@ -196,6 +207,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
         parentId = inserted.id;
       }
     }
+    mark("parent_lookup_or_create", tParent);
 
     // Replace primary emergency contact
     await supabaseAdmin.from("emergency_contacts").delete().eq("parent_id", parentId).eq("is_primary", true);
@@ -213,6 +225,7 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       student_id: string; student_name: string; class_id: string; class_name: string;
       monthly_cents: number; semester_cents: number;
     }> = [];
+    const tStudents = Date.now();
     for (const s of data.students) {
       // Dedupe on (parent_id, first_name, last_name, date_of_birth). This
       // prevents duplicate student rows if a submission is retried without
@@ -323,10 +336,12 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
         }
       }
     }
+    mark("students_and_enrollments", tStudents);
 
     // Auto-generate invoice for enrolled classes.
     let invoice: { invoiceId: string; invoiceNumber: string } | null = null;
     if (enrolledForInvoice.length > 0) {
+      const tInv = Date.now();
       try {
         const { buildInvoiceForRegistration } = await import("./invoices.functions");
         invoice = await buildInvoiceForRegistration({
@@ -343,7 +358,9 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       } catch (e) {
         console.error("Invoice generation failed:", e);
       }
+      mark("invoice_build_and_email", tInv);
     }
 
+    mark("total_registration", t0);
     return { ok: true, parent_id: parentId, placements: results, registration_ids: registrationIds, invoice };
   });
