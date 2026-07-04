@@ -1,6 +1,6 @@
 import * as React from 'react'
 import {
-  Body, Container, Head, Heading, Hr, Html, Img, Preview, Section, Text,
+  Body, Button, Container, Head, Heading, Hr, Html, Img, Preview, Section, Text,
 } from '@react-email/components'
 import type { TemplateEntry } from './registry'
 
@@ -24,6 +24,7 @@ interface Props {
   discount_cents?: number
   total_cents?: number
   line_items?: LineItem[]
+  payment_url?: string | null
   business?: {
     name: string; addressLine1: string; addressLine2: string; phone: string; email: string; website: string
   }
@@ -55,6 +56,7 @@ const Email = (props: Props) => {
     discount_cents = 0,
     total_cents = 0,
     line_items = [],
+    payment_url = null,
     business = {
       name: 'Discovery Outpost',
       addressLine1: '2112 SW E Ave',
@@ -138,6 +140,30 @@ const Email = (props: Props) => {
               </tbody>
             </table>
           </Section>
+
+          {payment_url ? (
+            <Section style={{ marginTop: '18px', textAlign: 'center' as const }}>
+              <Button
+                href={payment_url}
+                style={{
+                  backgroundColor: '#111827',
+                  color: '#ffffff',
+                  padding: '14px 28px',
+                  borderRadius: '999px',
+                  textDecoration: 'none',
+                  fontSize: '16px',
+                  fontWeight: 700 as const,
+                  display: 'inline-block',
+                }}
+              >
+                Pay Invoice — {money(total_cents)}
+              </Button>
+              <Text style={{ ...val, color: '#6b7280', fontSize: 12, marginTop: 10 }}>
+                Or copy this secure link:<br />
+                <a href={payment_url} style={{ color: '#2563eb', wordBreak: 'break-all' as const }}>{payment_url}</a>
+              </Text>
+            </Section>
+          ) : null}
 
           <Hr style={{ borderColor: '#e5e7eb', margin: '16px 0' }} />
 
