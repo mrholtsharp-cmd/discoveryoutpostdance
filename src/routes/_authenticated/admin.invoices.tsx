@@ -18,6 +18,7 @@ import {
 import { regenerateInvoicePaymentLink } from "@/lib/payments.functions";
 import { invoiceAsText, downloadInvoicePdf, printInvoice } from "@/lib/invoice-format";
 import { centsToUSD } from "@/lib/business";
+import { LoadError } from "@/components/site/LoadError";
 import { ArrowLeft, Search, Mail, Printer, Download, Copy, XCircle, CheckCircle2, AlertCircle, FileText, Pencil, Link2, RefreshCw, ExternalLink } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/admin/invoices")({
