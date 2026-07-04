@@ -23,12 +23,12 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
         try {
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-          // Idempotency: skip if we've already processed this event id.
+          const env = (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_live") ? "live" : "test";
           const { data: existing } = await supabaseAdmin
-            .from("stripe_webhook_events").select("id").eq("id", event.id).maybeSingle();
+            .from("stripe_webhook_events").select("id").eq("event_id", event.id).maybeSingle();
           if (existing) return Response.json({ received: true, duplicate: true });
           await supabaseAdmin.from("stripe_webhook_events").insert({
-            id: event.id, type: event.type, payload: event as any,
+            event_id: event.id, event_type: event.type, environment: env, payload: event as any,
           } as never);
 
           switch (event.type) {
