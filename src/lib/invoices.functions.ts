@@ -336,6 +336,9 @@ export const listInvoicesAdmin = createServerFn({ method: "GET" })
       .select("*, line_items:invoice_line_items(*)")
       .order("created_at", { ascending: false });
     if (error) throw new Error(error.message);
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`[invoice] listInvoicesAdmin returned count=${(data ?? []).length}`);
+    }
     return (data ?? []) as unknown as InvoiceWithLines[];
   });
 
