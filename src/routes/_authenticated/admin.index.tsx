@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Card } from "@/components/ui/card";
+import { LoadError } from "@/components/site/LoadError";
 import { getAdminOverview } from "@/lib/admin-v2.functions";
 import {
   Users, UsersRound, FileText, DollarSign, CheckCircle2, Clock,
