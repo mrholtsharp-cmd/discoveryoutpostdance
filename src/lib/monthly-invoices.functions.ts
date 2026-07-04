@@ -37,8 +37,6 @@ type RenewalResult = {
  */
 export async function generateMonthlyRenewalInvoices(now: Date = new Date()): Promise<RenewalResult> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { ensureInvoicePaymentLink } = await import("./payments.functions");
-  const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
 
   const season = getSeasonInfo();
   const seasonYear = season.seasonYear;
