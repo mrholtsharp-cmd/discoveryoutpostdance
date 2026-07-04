@@ -40,8 +40,21 @@ function StatCard({ icon: Icon, label, value, hint, tone, to }: {
 
 function AdminPage() {
   const overview = useServerFn(getAdminOverview);
-  const q = useQuery({ queryKey: ["admin-overview-v2"], queryFn: () => overview() });
+  const q = useQuery({ queryKey: ["admin-overview-v2"], queryFn: () => overview(), retry: 1 });
   const data = q.data;
+
+  if (q.isError) {
+    return (
+      <section className="mx-auto max-w-7xl px-4 sm:px-6 py-8">
+        <LoadError
+          title="We couldn't load the admin dashboard"
+          message={(q.error as Error)?.message || "Please try again in a moment."}
+          onRetry={() => q.refetch()}
+          retrying={q.isFetching}
+        />
+      </section>
+    );
+  }
 
   if (q.isLoading || !data) {
     return (
