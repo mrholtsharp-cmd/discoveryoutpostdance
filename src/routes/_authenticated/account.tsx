@@ -248,7 +248,12 @@ function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onC
     } finally { setPayingId(null); }
   }
 
-  const visible = (myInvoices ?? []).filter((inv: any) => inv.status !== "cancelled");
+  // Only show invoices the admin has issued. Drafts (status "new") are
+  // admin-only and are not payable in the parent portal until the admin
+  // clicks "Send Invoice".
+  const visible = (myInvoices ?? []).filter(
+    (inv: any) => inv.status !== "cancelled" && inv.status !== "new",
+  );
   const unpaid = visible.filter((inv: any) => inv.status !== "paid");
   const paid = visible.filter((inv: any) => inv.status === "paid");
 
