@@ -142,38 +142,21 @@ export const submitFullRegistration = createServerFn({ method: "POST" })
       if (!Number.isFinite(age) || age < 0) age = 0;
 
       for (const classId of s.class_ids) {
-        // Manually check capacity + insert, since enroll_or_waitlist uses auth.uid()
-        // and we're operating via service role here. Atomicity via row-lock on class.
+        // Class row read for name/pricing metadata used below.
         const { data: cls } = await supabaseAdmin
           .from("class_schedule")
           .select("capacity, class_name, monthly_tuition_cents, semester_tuition_cents")
           .eq("id", classId)
           .single();
-        const { count } = await supabaseAdmin
-          .from("enrollments")
-          .select("id", { count: "exact", head: true })
-          .eq("class_id", classId)
-          .eq("status", "active");
-        const enrolledCount = count ?? 0;
-        const cap = cls?.capacity ?? null;
-        let placement: "enrolled" | "waitlisted";
-        let waitPosition = 0;
-        if (cap == null || enrolledCount < cap) {
-          await supabaseAdmin.from("enrollments").insert({ student_id: stu.id, class_id: classId });
-          placement = "enrolled";
-        } else {
-          const { data: maxRow } = await supabaseAdmin
-            .from("waitlist_entries")
-            .select("wait_position")
-            .eq("class_id", classId)
-            .order("wait_position", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          const pos = (maxRow?.wait_position ?? 0) + 1;
-          await supabaseAdmin.from("waitlist_entries").insert({ student_id: stu.id, class_id: classId, wait_position: pos });
-          placement = "waitlisted";
-          waitPosition = pos;
-        }
+        // Atomic capacity check + insert via SECURITY DEFINER RPC (locks class row).
+        const { data: rpcRows, error: rpcErr } = await supabaseAdmin
+          .rpc("admin_enroll_or_waitlist", { _student_id: stu.id, _class_id: classId } as never);
+        if (rpcErr) throw new Error(rpcErr.message);
+        const row = Array.isArray(rpcRows) ? (rpcRows[0] as any) : (rpcRows as any);
+        const rawPlacement = row?.placement as string | undefined;
+        const placement: "enrolled" | "waitlisted" =
+          rawPlacement === "enrolled" || rawPlacement === "already_enrolled" ? "enrolled" : "waitlisted";
+        const waitPosition = placement === "waitlisted" ? (row?.wait_position ?? 0) : 0;
         results.push({ student_id: stu.id, class_id: classId, placement, wait_position: waitPosition });
 
         // Mirror into the legacy `registrations` table so the admin dashboard,
