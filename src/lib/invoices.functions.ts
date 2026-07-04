@@ -271,52 +271,12 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
   if (linesErr) throw new Error(linesErr.message);
   if (dev) console.log(`[invoice] line_items_inserted count=${lineRows.length}`);
 
-  // 8. Best-effort: generate Stripe link + send invoice email. Never fail
-  //    registration if Stripe or email are unavailable — the invoice row
-  //    exists and is visible in the parent portal / admin either way.
-  let paymentUrl: string | null = null;
-  if (total > 0) {
-    const tStripe = Date.now();
-    try {
-      const link = await ensureInvoicePaymentLink(inv.id);
-      if (!("error" in link)) paymentUrl = link.payment_url;
-    } catch (e) {
-      console.error("[buildInvoiceForRegistration] Stripe link failed (non-fatal):", e);
-    }
-    if (process.env.NODE_ENV !== "production") {
-      // eslint-disable-next-line no-console
-      console.log(`[invoice] stripe_link: ${Date.now() - tStripe}ms url=${paymentUrl ? "ok" : "missing"}`);
-    }
-  }
-  const tEmail = Date.now();
-  try {
-    // Re-read the invoice with its line items to build the email payload.
-    const { data: full } = await supabaseAdmin
-      .from("invoices")
-      .select("*, line_items:invoice_line_items(*)")
-      .eq("id", inv.id)
-      .single();
-    if (full) {
-      const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
-      await enqueueTransactionalEmail({
-        templateName: "invoice-sent",
-        recipientEmail: input.parentEmail,
-        idempotencyKey: `invoice-sent-${inv.id}`,
-        templateData: { ...invoiceEmailPayload(full as unknown as InvoiceWithLines), payment_url: paymentUrl },
-      });
-      await supabaseAdmin.from("invoices").update({
-        emailed_at: new Date().toISOString(),
-        status: "sent",
-        sent_at: new Date().toISOString(),
-      } as never).eq("id", inv.id);
-    }
-  } catch (e) {
-    console.error("[buildInvoiceForRegistration] Email send failed (non-fatal):", e);
-  }
-  if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
-    console.log(`[invoice] invoice_email_send: ${Date.now() - tEmail}ms`);
-  }
+  // NOTE: Invoices are NOT auto-sent. The invoice is created as a draft
+  // (status = "new") and remains invisible to the parent portal until an
+  // admin clicks "Send Invoice" from the admin dashboard, which generates
+  // the Stripe link and emails the parent (see updateInvoiceStatus /
+  // emailInvoice below).
+  if (dev) console.log(`[invoice] draft_created id=${inv.id} (admin must click Send)`);
 
   return { invoiceId: inv.id, invoiceNumber: inv.invoice_number };
 }
