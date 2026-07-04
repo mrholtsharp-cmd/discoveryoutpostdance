@@ -495,6 +495,10 @@ export type Database = {
           payment_method: string | null
           payment_url: string | null
           receipt_url: string | null
+          refund_reason: string | null
+          refunded_amount_cents: number | null
+          refunded_at: string | null
+          renewal_month: string | null
           semester_label: string
           semester_year: number
           sent_at: string | null
@@ -533,6 +537,10 @@ export type Database = {
           payment_method?: string | null
           payment_url?: string | null
           receipt_url?: string | null
+          refund_reason?: string | null
+          refunded_amount_cents?: number | null
+          refunded_at?: string | null
+          renewal_month?: string | null
           semester_label: string
           semester_year: number
           sent_at?: string | null
@@ -571,6 +579,10 @@ export type Database = {
           payment_method?: string | null
           payment_url?: string | null
           receipt_url?: string | null
+          refund_reason?: string | null
+          refunded_amount_cents?: number | null
+          refunded_at?: string | null
+          renewal_month?: string | null
           semester_label?: string
           semester_year?: number
           sent_at?: string | null
