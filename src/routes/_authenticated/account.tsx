@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createInvoiceRequest } from "@/lib/invoice-requests.functions";
 import { listMyInvoices } from "@/lib/invoices.functions";
 import { getMyInvoicePaymentLink } from "@/lib/payments.functions";
 import { getMyUnreadMessageCount } from "@/lib/messaging.functions";
@@ -41,13 +40,6 @@ function fmtDate(d: string | null | undefined) {
 
 type Snapshot = Awaited<ReturnType<typeof getMyPortalSnapshot>>;
 type ClassRow = Awaited<ReturnType<typeof listClassesWithAvailability>>[number];
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Pending",
-  sent: "Invoice sent",
-  paid: "Paid",
-  cancelled: "Cancelled",
-};
 
 function AccountPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
