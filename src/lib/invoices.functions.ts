@@ -401,7 +401,7 @@ export const backfillMissingInvoices = createServerFn({ method: "POST" })
       if (!s || !p || !c) { result.skipped_waitlist_or_cancelled++; continue; }
       const key = `${row.student_id}::${row.class_id}`;
       if (invoicedPairs.has(key)) { result.skipped_already_invoiced_pairs++; continue; }
-      const entry = byParent.get(p.id) ?? { parent: p, enrollments: [] };
+      const entry = byParent.get(p.id) ?? { parent: p, enrollments: [] as Enr[] };
       entry.enrollments.push({
         student_id: s.id,
         student_name: `${s.first_name} ${s.last_name}`.trim(),
