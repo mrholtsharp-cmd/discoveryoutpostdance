@@ -318,6 +318,139 @@ export const listMyInvoices = createServerFn({ method: "GET" })
     return (data ?? []) as unknown as InvoiceWithLines[];
   });
 
+// -----------------------------------------------------------------------------
+// Admin: backfill draft invoices for existing enrolled students that have no
+// invoice yet (e.g. registered before invoice creation was fixed).
+// - Only active enrollments. Skips cancelled/dropped.
+// - Skips (student, class) pairs already present as an invoice line item
+//   for the current season, so this is safe to run repeatedly.
+// - Skips waitlist-only parents (no active enrollments → nothing to bill).
+// - Creates draft invoices (status = "new"). Does NOT email or create
+//   Stripe links. Admin must click Send Invoice to release.
+// -----------------------------------------------------------------------------
+export type BackfillResult = {
+  invoices_created: number;
+  parents_processed: number;
+  skipped_already_invoiced_pairs: number;
+  skipped_waitlist_or_cancelled: number;
+  created: Array<{ parent_id: string; parent_email: string; invoice_id: string; invoice_number: string; enrollment_count: number }>;
+  skipped_parents: Array<{ parent_id: string; parent_email: string; reason: string }>;
+  errors: Array<{ parent_id?: string; parent_email?: string; message: string }>;
+};
+
+export const backfillMissingInvoices = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<BackfillResult> => {
+    await ensureAdmin(context);
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const season = getSeasonInfo();
+    const seasonYear = season.seasonYear;
+    const dev = process.env.NODE_ENV !== "production";
+
+    const result: BackfillResult = {
+      invoices_created: 0,
+      parents_processed: 0,
+      skipped_already_invoiced_pairs: 0,
+      skipped_waitlist_or_cancelled: 0,
+      created: [],
+      skipped_parents: [],
+      errors: [],
+    };
+
+    // 1. Pull all active enrollments joined with student + parent + class.
+    const { data: enrolls, error: eErr } = await supabaseAdmin
+      .from("enrollments")
+      .select(`
+        id, status, student_id, class_id,
+        students:student_id ( id, first_name, last_name, parent_id,
+          parents:parent_id ( id, first_name, last_name, email )
+        ),
+        class_schedule:class_id ( id, class_name, monthly_tuition_cents, semester_tuition_cents )
+      `)
+      .eq("status", "active");
+    if (eErr) throw new Error(eErr.message);
+
+    // 2. Load existing invoice line items for this season to build a
+    //    (student_id, class_id) already-invoiced set. Cheaper than per-parent lookups.
+    const { data: existingInvoices } = await supabaseAdmin
+      .from("invoices")
+      .select("id, parent_id, status, semester_year")
+      .eq("semester_year", seasonYear)
+      .neq("status", "cancelled");
+    const invoiceIds = (existingInvoices ?? []).map((r: any) => r.id);
+    const invoicedPairs = new Set<string>();
+    if (invoiceIds.length > 0) {
+      const { data: liRows } = await supabaseAdmin
+        .from("invoice_line_items")
+        .select("invoice_id, student_id, class_id")
+        .in("invoice_id", invoiceIds);
+      for (const li of (liRows ?? []) as any[]) {
+        if (li.student_id && li.class_id) invoicedPairs.add(`${li.student_id}::${li.class_id}`);
+      }
+    }
+    if (dev) console.log(`[backfill] active_enrollments=${(enrolls ?? []).length} invoiced_pairs=${invoicedPairs.size}`);
+
+    // 3. Group orphan enrollments by parent.
+    type Enr = { student_id: string; student_name: string; class_id: string; class_name: string; monthly_cents: number; semester_cents: number };
+    const byParent = new Map<string, { parent: { id: string; email: string; first_name: string; last_name: string }; enrollments: Enr[] }>();
+
+    for (const row of (enrolls ?? []) as any[]) {
+      const s = row.students;
+      const p = s?.parents;
+      const c = row.class_schedule;
+      if (!s || !p || !c) { result.skipped_waitlist_or_cancelled++; continue; }
+      const key = `${row.student_id}::${row.class_id}`;
+      if (invoicedPairs.has(key)) { result.skipped_already_invoiced_pairs++; continue; }
+      const entry = byParent.get(p.id) ?? { parent: p, enrollments: [] };
+      entry.enrollments.push({
+        student_id: s.id,
+        student_name: `${s.first_name} ${s.last_name}`.trim(),
+        class_id: c.id,
+        class_name: c.class_name,
+        monthly_cents: c.monthly_tuition_cents ?? 0,
+        semester_cents: c.semester_tuition_cents ?? (c.monthly_tuition_cents ?? 0) * SEMESTER_MONTHS,
+      });
+      byParent.set(p.id, entry);
+    }
+
+    // 4. Build a draft invoice per parent.
+    for (const [parentId, entry] of byParent) {
+      result.parents_processed++;
+      try {
+        const built = await buildInvoiceForRegistration({
+          parentId,
+          parentName: `${entry.parent.first_name} ${entry.parent.last_name}`.trim(),
+          parentEmail: (entry.parent.email ?? "").toLowerCase(),
+          tuitionPlan: "monthly",
+          invoicePreference: "monthly",
+          cashPayment: false,
+          notes: "Backfill: generated for existing enrollments.",
+          enrollments: entry.enrollments,
+          idempotencyKey: `backfill:${parentId}:${seasonYear}`,
+        });
+        if (built) {
+          result.invoices_created++;
+          result.created.push({
+            parent_id: parentId,
+            parent_email: entry.parent.email,
+            invoice_id: built.invoiceId,
+            invoice_number: built.invoiceNumber,
+            enrollment_count: entry.enrollments.length,
+          });
+          if (dev) console.log(`[backfill] created parent=${entry.parent.email} invoice=${built.invoiceNumber} lines=${entry.enrollments.length}`);
+        } else {
+          result.skipped_parents.push({ parent_id: parentId, parent_email: entry.parent.email, reason: "builder returned null" });
+        }
+      } catch (e: any) {
+        result.errors.push({ parent_id: parentId, parent_email: entry.parent.email, message: e?.message ?? String(e) });
+        if (dev) console.log(`[backfill] error parent=${entry.parent.email} msg=${e?.message}`);
+      }
+    }
+
+    if (dev) console.log(`[backfill] done created=${result.invoices_created} skipped_pairs=${result.skipped_already_invoiced_pairs} errors=${result.errors.length}`);
+    return result;
+  });
+
 export const getInvoiceForParty = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
