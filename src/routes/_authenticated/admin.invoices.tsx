@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import {
   listInvoicesAdmin, updateInvoiceStatus, updateInvoiceAdmin, emailInvoice,
+  backfillMissingInvoices,
   type InvoiceWithLines,
 } from "@/lib/invoices.functions";
 import { regenerateInvoicePaymentLink } from "@/lib/payments.functions";
@@ -154,6 +155,21 @@ function AdminInvoicesPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const backfillFn = useServerFn(backfillMissingInvoices);
+  const backfillM = useMutation({
+    mutationFn: async () => await backfillFn(),
+    onSuccess: (r: any) => {
+      toast.success(
+        `Backfill: ${r.invoices_created} draft invoice(s) created, ${r.skipped_already_invoiced_pairs} enrollments already invoiced, ${r.errors?.length ?? 0} errors`,
+        { duration: 8000 },
+      );
+      // eslint-disable-next-line no-console
+      console.log("[backfill] summary", r);
+      qc.invalidateQueries({ queryKey: ["admin-invoices"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   async function copyInvoice(inv: InvoiceWithLines) {
     try {
       await navigator.clipboard.writeText(invoiceAsText(inv));
@@ -182,6 +198,19 @@ function AdminInvoicesPage() {
             <Button variant="outline" size="sm" onClick={() => monthlyM.mutate()} disabled={monthlyM.isPending}>
               <PlayCircle className="h-3.5 w-3.5" />
               {monthlyM.isPending ? "Running…" : "Run monthly renewal now"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                if (confirm("Generate draft invoices for enrolled students that don't have an invoice yet? This creates drafts only — no emails or payment links until you click Send Invoice.")) {
+                  backfillM.mutate();
+                }
+              }}
+              disabled={backfillM.isPending}
+            >
+              <FileText className="h-3.5 w-3.5" />
+              {backfillM.isPending ? "Generating…" : "Generate missing invoices"}
             </Button>
           </div>
         </div>
