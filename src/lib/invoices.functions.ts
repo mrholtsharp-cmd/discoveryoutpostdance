@@ -49,7 +49,7 @@ export type InvoiceRow = {
   subtotal_cents: number;
   discount_cents: number;
   total_cents: number;
-  status: "new" | "sent" | "paid" | "overdue" | "cancelled";
+  status: "new" | "sent" | "paid" | "overdue" | "cancelled" | "refunded" | "partial_refund";
   invoice_date: string;
   due_date: string;
   sent_at: string | null;
@@ -467,7 +467,27 @@ export const getInvoiceForParty = createServerFn({ method: "GET" })
 // -----------------------------------------------------------------------------
 // Admin: update status / notes / amount
 // -----------------------------------------------------------------------------
-const statusSchema = z.enum(["new", "sent", "paid", "overdue", "cancelled"]);
+const statusSchema = z.enum(["new", "sent", "paid", "overdue", "cancelled", "refunded", "partial_refund"]);
+
+// Spec §10 — invoice lifecycle integrity. Only allow valid forward transitions.
+// Any pair not listed is rejected. `null`/undefined current status (fresh row)
+// is treated as "new".
+const ALLOWED_TRANSITIONS: Record<string, ReadonlyArray<string>> = {
+  new: ["sent", "cancelled"],
+  sent: ["paid", "overdue", "cancelled"],
+  overdue: ["paid", "sent", "cancelled"],
+  paid: ["refunded", "partial_refund"],
+  partial_refund: ["refunded"],
+  refunded: [],
+  cancelled: [],
+};
+
+function isAllowedTransition(from: string | null | undefined, to: string): boolean {
+  const current = (from ?? "new") as string;
+  if (current === to) return true; // no-op
+  const allowed = ALLOWED_TRANSITIONS[current] ?? [];
+  return allowed.includes(to);
+}
 
 export const updateInvoiceStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -481,9 +501,20 @@ export const updateInvoiceStatus = createServerFn({ method: "POST" })
   .handler(async ({ data, context }): Promise<{ ok: true; emailed?: boolean } | { error: string }> => {
     await ensureAdmin(context);
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    // Enforce lifecycle transitions before any write. Prevents e.g.
+    // Refunded→Unpaid, Paid→Draft, Cancelled→Paid, Refunded→Sent.
+    const { data: currentInv } = await supabaseAdmin
+      .from("invoices").select("status").eq("id", data.id).maybeSingle();
+    const currentStatus = (currentInv as any)?.status as string | undefined;
+    if (!isAllowedTransition(currentStatus, data.status)) {
+      return { error: `Cannot change invoice from "${currentStatus ?? "unknown"}" to "${data.status}".` };
+    }
     const patch: Record<string, unknown> = { status: data.status, updated_at: new Date().toISOString() };
     if (data.status === "sent") patch.sent_at = new Date().toISOString();
     if (data.status === "paid") patch.paid_at = new Date().toISOString();
+    if (data.status === "refunded") {
+      patch.refunded_at = new Date().toISOString();
+    }
     const { data: inv, error } = await supabaseAdmin
       .from("invoices").update(patch as never).eq("id", data.id).select("*, line_items:invoice_line_items(*)").single();
     if (error) return { error: error.message };
