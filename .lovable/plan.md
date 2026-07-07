@@ -1,78 +1,49 @@
+# Discovery Outpost Dance — Invoice & Payment Master Spec
 
-# Registration system rebuild
+Status: **Spec only.** No code changes have been made from this document. Work through sections one at a time in later turns, patching only what's verified broken.
 
-Scope: registration, database, auth, enrollment. Payments code path is left alone — the new wizard ends at a Review step with a placeholder total (no Stripe call). Old `registrations` table is kept read-only for the admin dashboard / parent portal / payments that already depend on it; new flows write to the new tables.
+## Guiding rules (do no harm)
 
-## Database (new tables, all in `public`)
+- Stability update, not a redesign.
+- Do not rebuild, redesign UI, or remove working functionality.
+- Do not modify DB schema unless absolutely required.
+- Preserve all current Supabase tables, RLS, auth, Stripe integration, parent portal, admin dashboard, registration, attendance, class management, and existing payment methods.
+- Patch only what is broken. If a feature already works, leave it alone.
+- Every fix must be verified not to regress adjacent features.
 
-```text
-parents              1 — n  students
-parents              1 — n  emergency_contacts
-classes              1 — n  enrollments     n — 1  students
-classes              1 — n  waitlist_entries n — 1  students
-```
+## Primary goal
 
-- `parents` — `auth_user_id` (FK auth.users, unique), first_name, last_name, email (unique), phone, address.
-- `emergency_contacts` — parent_id, name, phone, is_primary. Step 1 primary contact stored here.
-- `students` — parent_id, first_name, last_name, date_of_birth, grade, allergies, medical_notes, shirt_size. Age is derived in the UI from DOB (not stored).
-- `classes` — view/wrapper over `class_schedule` extended with `description`, `age_group`, `instructor`, `monthly_tuition_cents`. Missing columns added to `class_schedule` rather than duplicating data, so admin schedule editor keeps working.
-- `enrollments` — student_id, class_id, status (`active`/`cancelled`), enrolled_at. Unique (student_id, class_id).
-- `waitlist_entries` — student_id, class_id, position, created_at. Unique (student_id, class_id).
+Every time money is owed, the system reliably creates **one** invoice that appears in the Admin Dashboard, includes a Stripe payment link, and follows the correct approval workflow.
 
-RLS: every table scoped by `parent.auth_user_id = auth.uid()` for parents; admins via existing `has_role(auth.uid(),'admin')`. GRANTs included in same migration.
+## Sections
 
-Capacity: server function `enrollOrWaitlist(student_id, class_id)` runs in a transaction — counts active enrollments, compares to `class_schedule.capacity`; inserts into `enrollments` if room, else `waitlist_entries` with next position. Unique constraints prevent double-booking.
+1. **Registration invoice creation** — parent get-or-create, student dedupe, enroll/waitlist, tuition invoices only for enrolled, reg + recital fees, line items, immediate Admin visibility, no auto-email, idempotent against refresh/retry/double-submit.
+2. **Parent invoice requests** — create Draft / Not Sent invoice for requested period + enrolled classes, idempotent, immediate Admin visibility.
+3. **Stripe payment links** — exact amount match, invoice ID in metadata, saved URL, Admin can regenerate for unpaid only, Pay Online in portal/email only after Send. Stripe failure never blocks invoice/registration creation; Admin sees "Payment Link Missing" and can regenerate. Never expose secrets.
+4. **Admin invoice workflow** — review, edit drafts only, send/resend, regenerate link, mark offline paid, cancel. Statuses: Draft, Sent, Unpaid, Paid, Cancelled, Expired, Waitlisted/No Tuition Invoice. Paid invoices are immutable.
+5. **Parent portal** — only sent invoices visible, no drafts, no duplicate requests, Pay Online only when link exists, Paid shown after verified payment.
+6. **Stripe webhook** — verify signature, validate amount + invoice ID, mark paid, update portal + admin, dedupe events. Never mark paid without verification.
+7. **Preserve existing functionality** — registration, logins, attendance, schedule, availability, waitlists, tuition, discounts, fees, auth, RLS, Stripe, email, messaging, portal, admin.
+8. **Error handling** — no stuck loading states; try/catch/finally everywhere; meaningful errors; retries where appropriate; Stripe/email/link failures never block core success.
+9. **Final verification** — checklist of behaviors to confirm before shipping any change (single invoice per registration, no dupes, correct totals, waitlist-only creates none, portal gating, webhook marks Paid, existing features unaffected).
+10. **Invoice recovery, refunds, failed transactions** —
+    - Failed registration: no partial invoices/line items; safe retry; idempotent.
+    - Failed invoice request: no duplicate drafts; idempotent.
+    - Refunds: status Refunded, never reverts to Unpaid, preserve payment history + amount + date + reason, sync from Stripe webhook, shown in Admin + Portal, no auto new link, not counted as unpaid balance.
+    - Status integrity: only valid transitions (e.g. Draft→Sent, Sent→Paid, Paid→Refunded, Draft/Sent→Cancelled). Block Refunded→Unpaid, Paid→Draft, Cancelled→Paid, Refunded→Sent.
+    - Historical accuracy: original amount, payment/refund history, Stripe txn IDs, invoice number, audit timestamps preserved.
+11. **Missing Invoices review (backfill)** — safe, idempotent audit exposed as a **"Missing Invoices"** section in Admin Dashboard rather than auto-backfill. Office reviews each candidate draft and clicks Send Invoice for the ones that should actually be billed. Skips waitlisted-only, cancelled, and registrations that already have an invoice (or a Paid invoice unless Admin explicitly regenerates). No auto-email, no portal exposure until Sent.
 
-## Auth (account created during wizard)
+## Final backfill verification
 
-Step 1 collects email + password alongside parent info. On Step 4 submit:
-1. `supabase.auth.signUp({ email, password, options: { emailRedirectTo: origin } })`.
-2. Server fn `createParentProfile` (uses `requireSupabaseAuth`) writes parent row, emergency contact, students, then enrollments/waitlists atomically.
-3. If email already exists → inline message asking to sign in first; pre-existing session reuses that auth user.
+- Every enrolled registration has exactly one invoice (unless billing schedule requires more).
+- No duplicates.
+- Paid invoices unchanged; Refunded stay Refunded; Cancelled stay Cancelled.
+- Every new invoice has a Stripe link (or is clearly flagged as missing one).
+- Every backfilled invoice appears in Admin Dashboard.
+- No auto-email during backfill.
+- Existing functionality unaffected.
 
-Google sign-in added to /auth (existing) — not required for the wizard but offered.
+## How to use this spec
 
-## Wizard UI (`/register` replaces current single-page form)
-
-Mobile-first, single-column, sticky bottom action bar with Back / Continue. Progress indicator across 4 steps. Validation via zod + react-hook-form on each step; cannot advance until current step valid. Wizard state persisted in `sessionStorage` so refresh doesn't lose data.
-
-- **Step 1 — Parent**: first/last name, email, password, phone, address, emergency contact name + phone.
-- **Step 2 — Students**: array field, "Add another student" appends a card; each: first/last, DOB (shadcn date picker), auto-calculated age display, grade (select), allergies, medical notes, shirt size (select). Remove button per student (min 1).
-- **Step 3 — Classes**: server fn `listClassesWithAvailability` returns all classes + `enrolled_count`, `capacity`, `remaining`, `is_full`. Rendered as cards showing name, description, age group, instructor, day, time, monthly tuition, "X spots left" or "Full — join waitlist" badge. Per student, multi-select which classes to enroll. Full classes show waitlist toggle instead.
-- **Step 4 — Review**: students list, chosen classes per student, registration fee (constant from config), monthly tuition sum, **Total Due Today** = placeholder (Stripe disabled — shows "$X (payment coming soon)"). Submit calls `submitFullRegistration` server fn.
-
-## Files
-
-New:
-- `supabase/migrations/<ts>_registration_rebuild.sql`
-- `src/lib/registration-v2.functions.ts` (listClassesWithAvailability, submitFullRegistration, enrollOrWaitlist helper)
-- `src/lib/registration-v2.schemas.ts` (shared zod schemas)
-- `src/routes/register.tsx` — rewritten as wizard shell
-- `src/components/register/Step1Parent.tsx`, `Step2Students.tsx`, `Step3Classes.tsx`, `Step4Review.tsx`, `WizardProgress.tsx`
-
-Edited:
-- `src/lib/schedule.functions.ts` — add description/age_group/instructor/monthly_tuition fields to schedule editor.
-- Admin schedule UI (`admin.index.tsx` schedule section) — surface new fields.
-
-Left untouched: all payments code, parent portal `/account`, admin registrations list, audit log, email templates, existing `registrations` table.
-
-## Admin
-
-Admin dashboard gets a new "Enrollments" + "Waitlist" tab fed by the new tables. The legacy "Registrations" tab keeps working against the old table until a follow-up migration ports historical data.
-
-## Testing (before finishing)
-
-Playwright scripts driving `http://localhost:8080/register`:
-1. Happy path — 1 parent, 2 students, 1 class each, signup succeeds, rows appear in DB, redirected to /account.
-2. Duplicate email at signup — inline error, no DB rows created.
-3. Full class — auto-routes to waitlist, waitlist_entries row created with position 1.
-4. Refresh mid-wizard — state restored from sessionStorage.
-5. Mobile viewport (402×717) — every step usable, no horizontal scroll.
-
-I'll fix any errors surfaced by these runs before declaring done.
-
-## Out of scope (will not touch this turn)
-
-- Stripe Checkout integration with new schema.
-- Migrating historical `registrations` rows into new tables.
-- Parent portal redesign against new schema.
+On each future turn: pick one numbered section, confirm the specific symptom, patch narrowly, verify against the checklist in §9 and §10, stop.
