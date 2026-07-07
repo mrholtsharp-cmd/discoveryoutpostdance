@@ -203,14 +203,14 @@ function AdminInvoicesPage() {
               variant="outline"
               size="sm"
               onClick={() => {
-                if (confirm("Generate draft invoices for enrolled students that don't have an invoice yet? This creates drafts only — no emails or payment links until you click Send Invoice.")) {
+                if (confirm("Review missing invoices for enrolled students that don't have one yet? This creates DRAFT invoices only for your review — no emails, no payment links, and nothing shown to parents until you click Send Invoice on each one.")) {
                   backfillM.mutate();
                 }
               }}
               disabled={backfillM.isPending}
             >
               <FileText className="h-3.5 w-3.5" />
-              {backfillM.isPending ? "Generating…" : "Generate missing invoices"}
+              {backfillM.isPending ? "Reviewing…" : "Review missing invoices"}
             </Button>
           </div>
         </div>
