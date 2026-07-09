@@ -35,6 +35,7 @@ function AuthPage() {
     const mark = (label: string, start: number) => {
       if (isDev) console.log(`[auth] ${label} ${(performance.now() - start).toFixed(0)}ms`);
     };
+    const devToast = (msg: string) => { if (isDev) toast.message(msg); };
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -66,12 +67,11 @@ function AuthPage() {
           return;
         }
         toast.success("Account created — you're signed in.");
-        const tNav = performance.now();
-        navigate({ to: "/account", replace: true });
-        mark("navigate", tNav);
+        await goToAccount();
         return;
       }
 
+      devToast("Signing in");
       const tSignIn = performance.now();
       const { data: signInData, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
@@ -81,16 +81,30 @@ function AuthPage() {
       if (error) throw error;
       if (!signInData.session) throw new Error("Sign-in returned no session.");
 
+      devToast("Auth success");
       toast.success("Welcome back");
-      const tNav = performance.now();
-      navigate({ to: "/account", replace: true });
-      mark("navigate", tNav);
+      await goToAccount();
     } catch (err: any) {
       const message = err?.message || "Something went wrong. Please try again.";
       toast.error(message);
       if (isDev) console.error("[auth] submit error", err);
     } finally {
-      setLoading(false);
+      // Only clear loading if we're still on the auth page (navigation may have unmounted us)
+      if (typeof window !== "undefined" && window.location.pathname.startsWith("/auth")) {
+        setLoading(false);
+      }
+    }
+
+    async function goToAccount() {
+      devToast("Navigating");
+      const tNav = performance.now();
+      try {
+        await navigate({ to: "/account", replace: true });
+        mark("navigate", tNav);
+      } catch (navErr) {
+        if (isDev) console.error("[auth] navigate failed, falling back", navErr);
+        window.location.assign("/account");
+      }
     }
   }
 
