@@ -72,6 +72,9 @@ function AccountPage() {
     }
   }
   useEffect(() => { void reload(); }, []);
+  useEffect(() => {
+    if (import.meta.env.DEV) toast.message("Account route loading");
+  }, []);
 
   if (loadState === "loading") {
     return <Layout><section className="mx-auto max-w-3xl px-4 py-16"><p className="text-sm text-muted-foreground">Loading your portal…</p></section></Layout>;
