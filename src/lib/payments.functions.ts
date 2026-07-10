@@ -41,6 +41,7 @@ export async function ensureInvoicePaymentLink(
 
   if (row.status === "paid") return { error: "Invoice already paid" };
   if (row.status === "cancelled") return { error: "Invoice cancelled" };
+  if (row.cash_payment) return { error: "Cash invoice — no Stripe link generated" };
   if (!row.total_cents || row.total_cents <= 0) return { error: "Invoice amount must be greater than zero" };
 
   // If we still have a live session (< 23h old) and no forceNew requested,
@@ -134,10 +135,11 @@ export const getMyInvoicePaymentLink = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // Verify the invoice belongs to this parent (RLS also enforces this).
     const { data: inv, error } = await context.supabase
-      .from("invoices").select("id, status").eq("id", data.invoiceId).maybeSingle();
+      .from("invoices").select("id, status, cash_payment").eq("id", data.invoiceId).maybeSingle();
     if (error || !inv) return { error: "Invoice not found" as const };
     if ((inv as any).status === "paid") return { error: "Invoice already paid" as const };
     if ((inv as any).status === "cancelled") return { error: "Invoice cancelled" as const };
+    if ((inv as any).cash_payment) return { error: "This invoice is set to cash payment. Please pay in person or via Venmo/Cash App/PayPal." as const };
     return await ensureInvoicePaymentLink(data.invoiceId);
   });
 

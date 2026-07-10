@@ -280,7 +280,8 @@ function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onC
             const createdAt = inv.stripe_session_created_at ? new Date(inv.stripe_session_created_at) : null;
             const businessExpired = createdAt ? (Date.now() - createdAt.getTime() > 1000 * 60 * 60 * 24 * 30 * 4) : false;
             const hasLink = !!inv.payment_url && !businessExpired;
-            const canPay = inv.total_cents > 0 && !businessExpired;
+            const isCash = !!inv.cash_payment;
+            const canPay = inv.total_cents > 0 && !businessExpired && !isCash;
             return (
               <Card key={inv.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -293,7 +294,15 @@ function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onC
                   </div>
                   <Badge variant="outline" className="shrink-0">Unpaid</Badge>
                 </div>
-                {canPay && hasLink ? (
+                {isCash ? (
+                  <div className="mt-4 rounded-md border border-amber-300 bg-amber-50/60 dark:bg-amber-950/20 p-3 text-sm">
+                    <p className="font-medium text-amber-900 dark:text-amber-100">Cash / in-person payment</p>
+                    <p className="mt-1 text-muted-foreground">
+                      You selected cash payment. Please bring your payment to the studio, or use Venmo,
+                      Cash App, or PayPal. Contact the studio for account details.
+                    </p>
+                  </div>
+                ) : canPay && hasLink ? (
                   <Button className="rounded-full mt-4 w-full sm:w-auto" onClick={() => payInvoice(inv)} disabled={payingId === inv.id}>
                     {payingId === inv.id ? "Opening secure checkout…" : "Pay Online"}
                   </Button>
@@ -302,9 +311,11 @@ function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onC
                 ) : (
                   <p className="mt-4 text-sm text-muted-foreground">Payment link being prepared. Please check back shortly or contact the studio.</p>
                 )}
-                <p className="mt-3 text-xs text-muted-foreground">
-                  For Cash, Venmo, PayPal, or Cash App payments, please contact the studio.
-                </p>
+                {!isCash && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Also accepted: Cash, Venmo, Cash App, PayPal — contact the studio.
+                  </p>
+                )}
               </Card>
             );
           })}
