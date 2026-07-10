@@ -524,9 +524,12 @@ export const updateInvoiceStatus = createServerFn({ method: "POST" })
       try {
         // Create/refresh a unique payment link for this invoice before sending.
         let paymentUrl: string | null = (inv as any).payment_url ?? null;
-        if ((inv as any).total_cents > 0) {
+        // Cash invoices never get a Stripe link — parent pays in person / Venmo / CashApp / PayPal.
+        if ((inv as any).total_cents > 0 && !(inv as any).cash_payment) {
           const link = await ensureInvoicePaymentLink(data.id);
           if (!("error" in link)) paymentUrl = link.payment_url;
+        } else if ((inv as any).cash_payment) {
+          paymentUrl = null;
         }
         const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
         await enqueueTransactionalEmail({
@@ -597,9 +600,17 @@ export const emailInvoice = createServerFn({ method: "POST" })
     if (error || !inv) return { error: error?.message ?? "Not found" };
     try {
       let paymentUrl: string | null = (inv as any).payment_url ?? null;
-      if ((inv as any).total_cents > 0 && (inv as any).status !== "paid" && (inv as any).status !== "cancelled") {
+      const isCash = !!(inv as any).cash_payment;
+      if (
+        (inv as any).total_cents > 0 &&
+        (inv as any).status !== "paid" &&
+        (inv as any).status !== "cancelled" &&
+        !isCash
+      ) {
         const link = await ensureInvoicePaymentLink(data.id);
         if (!("error" in link)) paymentUrl = link.payment_url;
+      } else if (isCash) {
+        paymentUrl = null;
       }
       const { enqueueTransactionalEmail } = await import("@/lib/email/internal-send.server");
       await enqueueTransactionalEmail({
