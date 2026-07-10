@@ -41,6 +41,7 @@ export async function ensureInvoicePaymentLink(
 
   if (row.status === "paid") return { error: "Invoice already paid" };
   if (row.status === "cancelled") return { error: "Invoice cancelled" };
+  if (row.cash_payment) return { error: "Cash invoice — no Stripe link generated" };
   if (!row.total_cents || row.total_cents <= 0) return { error: "Invoice amount must be greater than zero" };
 
   // If we still have a live session (< 23h old) and no forceNew requested,
