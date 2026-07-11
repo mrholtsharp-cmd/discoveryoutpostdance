@@ -66,6 +66,10 @@ export const refundInvoice = createServerFn({ method: "POST" })
         refunded_amount_cents: newRefunded,
         refunded_at: new Date().toISOString(),
         refund_reason: data.admin_note ?? data.reason ?? null,
+        payment_url: null,
+        stripe_session_id: null,
+        stripe_session_created_at: null,
+        stripe_session_expires_at: null,
         updated_at: new Date().toISOString(),
       } as never).eq("id", row.id);
 
