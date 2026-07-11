@@ -257,9 +257,13 @@ function InvoicesTab({ snap: _snap, onChange: _onChange }: { snap: Snapshot; onC
   // admin-only and are not payable in the parent portal until the admin
   // clicks "Send Invoice".
   const visible = (myInvoices ?? []).filter(
-    (inv: any) => inv.status !== "cancelled" && inv.status !== "new",
+    (inv: any) =>
+      inv.status !== "cancelled" &&
+      inv.status !== "new" &&
+      inv.status !== "refunded" &&
+      inv.status !== "partial_refund",
   );
-  const unpaid = visible.filter((inv: any) => inv.status !== "paid");
+  const unpaid = visible.filter((inv: any) => inv.status === "sent" || inv.status === "overdue");
   const paid = visible.filter((inv: any) => inv.status === "paid");
 
   return (

@@ -41,6 +41,9 @@ export async function ensureInvoicePaymentLink(
 
   if (row.status === "paid") return { error: "Invoice already paid" };
   if (row.status === "cancelled") return { error: "Invoice cancelled" };
+  if (row.status === "refunded" || row.status === "partial_refund") {
+    return { error: "Invoice refunded — contact the studio if this is unexpected" };
+  }
   if (row.cash_payment) return { error: "Cash invoice — no Stripe link generated" };
   if (!row.total_cents || row.total_cents <= 0) return { error: "Invoice amount must be greater than zero" };
 
@@ -139,6 +142,9 @@ export const getMyInvoicePaymentLink = createServerFn({ method: "POST" })
     if (error || !inv) return { error: "Invoice not found" as const };
     if ((inv as any).status === "paid") return { error: "Invoice already paid" as const };
     if ((inv as any).status === "cancelled") return { error: "Invoice cancelled" as const };
+    if ((inv as any).status === "refunded" || (inv as any).status === "partial_refund") {
+      return { error: "This invoice was refunded. Please contact the studio if this is unexpected." as const };
+    }
     if ((inv as any).cash_payment) return { error: "This invoice is set to cash payment. Please pay in person or via Venmo/Cash App/PayPal." as const };
     return await ensureInvoicePaymentLink(data.invoiceId);
   });
