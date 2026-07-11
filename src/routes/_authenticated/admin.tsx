@@ -19,6 +19,7 @@ const TABS: Array<{ to: string; label: string }> = [
   { to: "/admin/waitlists", label: "Waitlists" },
   { to: "/admin/teachers", label: "Teachers" },
   { to: "/admin/tuition", label: "Tuition" },
+  { to: "/admin/invoice-migration", label: "Invoice migration" },
 ];
 
 export const Route = createFileRoute("/_authenticated/admin")({
