@@ -45,8 +45,17 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 console.error("[stripe-webhook] invoice_id from Stripe not found:", invoiceId, "event", event.id);
                 break;
               }
-              if ((invRow as any).status === "paid") {
+              const curStatus = (invRow as any).status;
+              if (curStatus === "paid") {
                 console.log("[stripe-webhook] invoice already paid, skipping:", invoiceId);
+                break;
+              }
+              if (curStatus === "refunded" || curStatus === "partial_refund" || curStatus === "cancelled") {
+                console.error("[stripe-webhook] payment received on non-payable invoice", invoiceId, "status", curStatus, "event", event.id);
+                await supabaseAdmin.from("invoices").update({
+                  payment_failure_reason: `Received payment while invoice was ${curStatus} (event ${event.id})`,
+                  updated_at: new Date().toISOString(),
+                } as never).eq("id", invoiceId);
                 break;
               }
               const paid = s.amount_total ?? 0;
@@ -101,7 +110,12 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 console.error("[stripe-webhook] PI invoice_id not found:", invoiceId, "event", event.id);
                 break;
               }
-              if ((invRow2 as any).status === "paid") break;
+              const curStatus2 = (invRow2 as any).status;
+              if (curStatus2 === "paid") break;
+              if (curStatus2 === "refunded" || curStatus2 === "partial_refund" || curStatus2 === "cancelled") {
+                console.error("[stripe-webhook] PI payment on non-payable invoice", invoiceId, "status", curStatus2, "event", event.id);
+                break;
+              }
               const paid2 = pi.amount_received ?? pi.amount ?? 0;
               const expected2 = (invRow2 as any).total_cents ?? 0;
               if (paid2 !== expected2) {
@@ -171,6 +185,10 @@ export const Route = createFileRoute("/api/public/stripe/webhook")({
                 status: isFull ? "refunded" : "partial_refund",
                 refunded_amount_cents: totalRefunded,
                 refunded_at: new Date().toISOString(),
+                payment_url: null,
+                stripe_session_id: null,
+                stripe_session_created_at: null,
+                stripe_session_expires_at: null,
                 updated_at: new Date().toISOString(),
               } as never).eq("id", (invRow3 as any).id);
 
