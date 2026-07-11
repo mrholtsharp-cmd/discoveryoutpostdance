@@ -1,105 +1,77 @@
-# Safe Production Cleanup + Invoice Workflow Upgrade
+## Current state (verified in the database)
 
-This is a large, cross-cutting change. I'll do it in **6 verified batches**, stopping between each to confirm nothing regressed. No DB records deleted, no schema drops, no changes to auth/RLS/Stripe webhook signature verification.
+Total invoices: **21**. Distribution:
 
----
+| Status | Count | Notes |
+|---|---|---|
+| `new` (draft) | 14 | Admin-only under new workflow |
+| `cancelled` | 7 | Should not be payable |
+| `sent` / `overdue` / `paid` / `refunded` / `partial_refund` | 0 | None exist |
 
-## Batch 1 — Registration → auto-create Draft invoice
+Every invoice already has: `parent_id`, `parent_email`, `parent_name`, `semester_year`, `semester_label`, `tuition_plan`, `invoice_preference`, `cash_payment`, correct totals, and 1+ line items. **Structurally, all 21 invoices already fit the new workflow.** No replacement invoices are needed; no paid history to preserve; no refunds to protect.
 
-**Files:** `src/lib/registrations.functions.ts`, `src/lib/registration-v2.functions.ts`
+The only real drift from the new workflow is Stripe-link hygiene:
 
-- After a successful registration commit, create an invoice with `status = 'new'` (Draft), line items for **enrolled** classes only (skip `waitlist_entries`).
-- Idempotency key: `registration-{registration_id}` so re-runs never duplicate.
-- Do **not** call Stripe, do **not** send email. Admin must click Send Invoice.
-- If invoice creation fails, log it and continue — never block registration.
+- **7 draft (`new`) invoices** have a `payment_url` populated from before the "Send Invoice = generate link" rule. Under the new workflow drafts must have no Stripe link.
+- **3 of those drafts are `cash_payment = true`** (DO-2026-0002, 0003, 0005) and must never have a Stripe link at all.
+- **6 `cancelled` invoices** still have a live `payment_url`. Cancelled invoices must not be payable.
 
-**Verify:** Run a test registration in Playwright, confirm Draft invoice appears in `admin.invoices` and no email fires.
+Nothing else needs repair, replacement, or archival.
 
----
+## Plan
 
-## Batch 2 — Parent Portal: remove "Request Invoice"
+Small, admin-gated, idempotent, dry-run-first cleanup — scoped exactly to the drift above.
 
-**Files:** `src/routes/_authenticated/account.tsx` (+ any `invoice-requests` UI hook)
+### 1. Add an admin migration tool: `src/lib/invoice-migration.functions.ts`
 
-- Hide the Request Invoice button/section in Parent Portal.
-- Leave `invoice_requests` table + admin page intact (no data loss) — just unlink from parent nav.
+Two `createServerFn` handlers, both `requireSupabaseAuth` + `has_role('admin')`:
 
-**Verify:** Load `/account` — no Request Invoice CTA.
+- `previewInvoiceMigration()` — reads only, returns a categorized report:
+  - `compatible[]` — invoice is fine, nothing to do
+  - `drafts_with_stale_link[]` — `status='new'`, `payment_url` set → will clear link + expire Stripe session
+  - `cash_drafts_with_link[]` — `status='new' AND cash_payment` with any link → will clear link + expire session
+  - `cancelled_with_link[]` — `status='cancelled'`, `payment_url` set → will clear link + expire session
+  - `paid_preserved[]` — untouched (currently empty)
+  - `refunded_preserved[]` — untouched (currently empty)
+  - `missing_line_items[]` — invoices with 0 line items (currently empty; flagged for manual review, never auto-created)
+  - `missing_parent_link[]` — invoices without `parent_id` (currently empty; flagged for manual review)
+  - `duplicates_needing_review[]` — same `parent_id + semester_year + renewal_month + tuition_plan` seen twice among non-cancelled (flagged, never auto-merged)
+- `runInvoiceMigration({ confirm: true })` — performs only these edits:
+  - For each drift row above: `stripe.checkout.sessions.expire(stripe_session_id)` (best-effort, ignore already-expired) then `UPDATE invoices SET payment_url=NULL, stripe_session_id=NULL, stripe_session_created_at=NULL, stripe_session_expires_at=NULL, updated_at=now()`.
+  - Never touches `status`, `total_cents`, `line_items`, `paid_at`, `sent_at`, `stripe_payment_intent_id`, `refunded_amount_cents`, `invoice_number`, `id`, `parent_id`, `notes`.
+  - Never sends email, never generates new Stripe links (Admin still clicks **Send Invoice** on a draft, which is where the workflow already creates the link).
+  - Records `admin_notes` append: `\n[migrated <ISO>] cleared stale Stripe link (workflow v2)` — used as the idempotency guard so a second run skips already-cleaned rows.
+  - Returns a report: `{ links_cleared, sessions_expired, sessions_already_expired, skipped_already_migrated, errors }`.
 
----
+Idempotency guard: `WHERE payment_url IS NOT NULL AND (status IN ('new','cancelled') OR (status='new' AND cash_payment))`. A second run finds zero rows and reports "already clean".
 
-## Batch 3 — Payment method enforcement (cash vs. Stripe)
+### 2. Add an admin UI: `src/routes/_authenticated/admin.invoice-migration.tsx`
 
-**Files:** `src/lib/payments.functions.ts`, `src/lib/invoices.functions.ts` (sendInvoice), parent portal invoice view.
+- Loads the preview.
+- Renders each bucket as a table with invoice number, parent, status, total, action ("clear link", "no change", "manual review").
+- Footer summary + a **Run migration** button that opens a confirm dialog listing the exact counts to be modified. Disabled if `links_cleared + sessions_expired == 0` (nothing to do).
+- After run, shows the result report and offers a link back to Admin → Invoices.
+- Linked from the Admin dashboard nav as "Invoice migration" (kept out of the parent portal).
 
-- On **Send Invoice**: if `cash_payment = true`, skip Stripe link creation entirely; email includes cash/Venmo/CashApp/PayPal instructions only.
-- If not cash: generate Stripe Checkout link, save on invoice, include Pay Online in email + portal.
-- Parent portal invoice card: only shows Pay Online when `status IN ('sent','overdue','partial')` **and** `cash_payment = false` **and** `payment_url` exists. Cash invoices show payment instructions block, no Stripe button.
+### 3. What the plan explicitly does **not** do
 
-**Verify:** Create one cash + one card draft, send both, confirm portal shows correct affordance.
+- No `DELETE` on invoices or line items.
+- No new invoices created. No replacement/supersede/archive rows (nothing in the current data requires it; the schema has no `superseded_by` column and adding one for zero use cases would be waste).
+- No changes to `paid`, `refunded`, `partial_refund`, `sent`, `overdue` invoices — the fixed webhook + refund handlers already handle those and none exist yet.
+- No re-emailing. No auto-Send.
+- No schema migration.
 
----
+### 4. Verification
 
-## Batch 4 — Monthly tuition guardrails
+- `bunx tsgo --noEmit`.
+- Run the preview against the live DB via `invoke-server-function`; confirm counts match the table above (7 drafts w/ link, 6 cancelled w/ link, 3 cash overlap).
+- Run the migration once → verify: cancelled invoices show no `payment_url`, drafts show no `payment_url`, `admin_notes` carries the marker.
+- Run it a second time → verify report shows `links_cleared: 0, skipped_already_migrated: N`.
 
-**Files:** `src/lib/monthly-invoices.functions.ts`
+## Files
 
-- Already filters `status = 'active'` enrollments ✅
-- Already uses `idempotency_key = monthly-{parent}-{YYYY-MM}` ✅
-- Confirm renewal invoices start `status = 'new'` (Draft) ✅
-- Add: skip parents with **zero active enrollments** (already done) and add explicit log line for admin dashboard.
+- **New:** `src/lib/invoice-migration.functions.ts`
+- **New:** `src/routes/_authenticated/admin.invoice-migration.tsx`
+- **Edit:** `src/routes/_authenticated/admin.tsx` — add nav card/link to the migration page.
 
-**Verify:** Run `runMonthlyRenewalManually` twice, second run reports all deduped.
-
----
-
-## Batch 5 — Backfill/sync tool
-
-**Files:** `src/lib/invoices.functions.ts` (extend existing `backfillMissingInvoices`), `src/routes/_authenticated/admin.invoices.tsx`.
-
-- Scan `registrations` where no invoice exists with `idempotency_key = registration-{id}`.
-- Skip registrations whose students are only on `waitlist_entries` (no `enrollments.status='active'` row).
-- Create Draft invoice + line items. **Do not** pre-generate Stripe link (link is created at Send time — matches Batch 3).
-- Return `{ created, skipped_waitlist_only, skipped_existing, failed }`.
-- Admin UI: rename button "Sync missing invoices", show result counts.
-
-**Verify:** Run once → counts. Run again → all skipped_existing.
-
----
-
-## Batch 6 — Admin Dashboard cleanup
-
-**Files:** `src/routes/_authenticated/admin.tsx` (nav), possibly `admin.index.tsx`.
-
-Keep: Registrations, Students, Classes, Attendance, Invoices, Parents/Messages, Monthly Tuition, Waitlists, Teachers, Contact.
-
-Hide from nav (do not delete files/routes):
-- **Invoice Requests** (parents no longer request) — route stays reachable by URL for legacy review, removed from nav.
-- Any test/demo invoice buttons on `admin.index.tsx` if present.
-
-**Verify:** Load admin, screenshot nav.
-
----
-
-## Final verification (Playwright)
-
-1. New registration → Draft invoice in Admin, no email.
-2. Admin Send → parent sees Pay Online (card) or instructions (cash).
-3. Cash invoice has no `payment_url`.
-4. Non-cash invoice has Stripe link after Send.
-5. Backfill run twice → no duplicates.
-6. Monthly renewal run twice → no duplicates.
-7. Stripe webhook flips `status → paid` (existing behavior, unchanged).
-
----
-
-## Guardrails
-
-- **No** schema migrations unless a batch discovers a missing column — I'll pause and ask.
-- **No** changes to `src/routes/api/public/stripe/webhook.ts` signature/verification logic.
-- **No** changes to auth, RLS, `user_roles`, or `_authenticated/route.tsx`.
-- **No** deletion of tables, columns, or rows.
-- After each batch: `bunx tsgo --noEmit` + targeted Playwright check.
-- If any regression appears, I stop and report before continuing.
-
-Approve to start with Batch 1.
+Nothing else changes.
