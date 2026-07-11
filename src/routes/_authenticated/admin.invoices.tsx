@@ -334,19 +334,31 @@ function AdminInvoicesPage() {
                     <Mail className="h-3.5 w-3.5" /> Send Invoice
                   </Button>
                 )}
-                {(inv.status === "overdue" || inv.status === "cancelled") && (
+                {inv.status === "overdue" && (
                   <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "sent", send_email: false })}>
                     <FileText className="h-3.5 w-3.5" /> Mark Sent
                   </Button>
                 )}
-                {inv.status !== "paid" && <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "paid" })}><CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid</Button>}
-                {inv.status !== "overdue" && <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "overdue" })}><AlertCircle className="h-3.5 w-3.5" /> Overdue</Button>}
+                {(inv.status === "sent" || inv.status === "overdue") && (
+                  <Button size="sm" onClick={() => setStatus.mutate({ id: inv.id, status: "paid" })}>
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Mark Paid
+                  </Button>
+                )}
+                {(inv.status === "sent") && (
+                  <Button size="sm" variant="outline" onClick={() => setStatus.mutate({ id: inv.id, status: "overdue" })}>
+                    <AlertCircle className="h-3.5 w-3.5" /> Overdue
+                  </Button>
+                )}
                 {(inv.status === "paid" || (inv.status as string) === "partial_refund") && (inv as any).stripe_payment_intent_id && (
                   <Button size="sm" variant="outline" className="text-purple-800 border-purple-300" onClick={() => setRefunding(inv)}>
                     <Undo2 className="h-3.5 w-3.5" /> Refund
                   </Button>
                 )}
-                {inv.status !== "cancelled" && <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (confirm("Cancel this invoice?")) setStatus.mutate({ id: inv.id, status: "cancelled" }); }}><XCircle className="h-3.5 w-3.5" /> Cancel</Button>}
+                {(inv.status === "new" || inv.status === "sent" || inv.status === "overdue") && (
+                  <Button size="sm" variant="ghost" className="text-destructive" onClick={() => { if (confirm("Cancel this invoice?")) setStatus.mutate({ id: inv.id, status: "cancelled" }); }}>
+                    <XCircle className="h-3.5 w-3.5" /> Cancel
+                  </Button>
+                )}
                 <MessageParentButton
                   parentId={(inv as any).parent_id}
                   parentEmail={inv.parent_email}
