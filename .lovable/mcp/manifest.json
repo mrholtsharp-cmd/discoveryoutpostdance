@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://swmjirtxvbmxlbywtryr.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "discovery-outpost-dance-mcp",
+      "version": "0.1.0",
+      "title": "Discovery Outpost Dance"
+    },
+    "tools": [
+      {
+        "name": "get_my_account",
+        "title": "Get my account",
+        "description": "Return the signed-in parent's profile, students, emergency contacts, active enrollments, and waitlist entries.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_my_invoices",
+        "title": "List my invoices",
+        "description": "List invoices for the signed-in parent. Optionally filter by status (draft, sent, paid, overdue, cancelled, refunded).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "sent",
+                "paid",
+                "overdue",
+                "cancelled",
+                "refunded"
+              ],
+              "description": "Optional invoice status filter."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "description": "Max rows to return (default 25)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_classes",
+        "title": "List classes",
+        "description": "List the current dance class schedule (day, time, instructor, age group, monthly tuition).",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
