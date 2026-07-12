@@ -1,0 +1,1 @@
+REVOKE SELECT (stripe_monthly_lookup_key, stripe_semester_lookup_key) ON public.class_schedule FROM anon, authenticated;
