@@ -371,7 +371,7 @@ function RegisterWizard() {
               </Button>
             ) : (
               <Button type="button" onClick={handleSubmitAll} disabled={submitting}>
-                {submitting ? "Submitting…" : "Submit & Generate Invoice"}
+                {submitting ? "Submitting…" : "Complete Registration"}
               </Button>
             )}
           </div>
