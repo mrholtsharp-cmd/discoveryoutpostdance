@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Layout } from "@/components/site/Layout";
 import { Card } from "@/components/ui/card";
@@ -10,11 +10,22 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({ meta: [{ title: "Sign In — Discovery Outpost" }, { name: "robots", content: "noindex" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({
+    next: typeof s.next === "string" ? s.next : undefined,
+  }),
   component: AuthPage,
 });
 
+function safeNext(next: string | undefined): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return null;
+  return next;
+}
+
 function AuthPage() {
   const navigate = useNavigate();
+  const { next } = useSearch({ from: "/auth" });
+  const nextPath = safeNext(next);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -22,9 +33,12 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/account", replace: true });
+      if (data.session) {
+        if (nextPath) window.location.assign(nextPath);
+        else navigate({ to: "/account", replace: true });
+      }
     });
-  }, [navigate]);
+  }, [navigate, nextPath]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +71,9 @@ function AuthPage() {
         const { data: signUpData, error } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/account` },
+          options: {
+            emailRedirectTo: `${window.location.origin}${nextPath ?? "/account"}`,
+          },
         });
         mark("signUp", t);
         if (error) throw error;
@@ -99,11 +115,15 @@ function AuthPage() {
       devToast("Navigating");
       const tNav = performance.now();
       try {
+        if (nextPath) {
+          window.location.assign(nextPath);
+          return;
+        }
         await navigate({ to: "/account", replace: true });
         mark("navigate", tNav);
       } catch (navErr) {
         if (isDev) console.error("[auth] navigate failed, falling back", navErr);
-        window.location.assign("/account");
+        window.location.assign(nextPath ?? "/account");
       }
     }
   }
