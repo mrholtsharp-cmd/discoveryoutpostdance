@@ -18,6 +18,25 @@ async function ensureAdmin(context: { supabase: any; userId: string }) {
   if (!ok) throw new Error("Forbidden");
 }
 
+// True when a non-cancelled invoice already contains a one-time-fee line for
+// this student+category+season. Used as defense-in-depth against duplicates.
+async function hasExistingFeeLine(
+  studentId: string,
+  category: "registration_fee" | "recital_fee",
+  seasonYear: number,
+): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("invoice_line_items")
+    .select("id, invoice_id, invoices!inner(status, semester_year)")
+    .eq("student_id", studentId)
+    .eq("category", category)
+    .eq("invoices.semester_year", seasonYear)
+    .neq("invoices.status", "cancelled")
+    .limit(1);
+  return (data ?? []).length > 0;
+}
+
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
