@@ -154,7 +154,11 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       .eq("semester_year", seasonYear)
       .maybeSingle();
     const alreadyCharged = !!existing?.registration_fee_charged;
-    if (!alreadyCharged) {
+    // Defense in depth: also verify no non-cancelled invoice already has this
+    // fee line for the student+season. Prevents duplicates if student_semester_fees
+    // is out of sync with actual invoice history.
+    const alreadyOnInvoice = await hasExistingFeeLine(sid, "registration_fee", seasonYear);
+    if (!alreadyCharged && !alreadyOnInvoice) {
       const studentName = input.enrollments.find((e) => e.student_id === sid)?.student_name ?? "Student";
       lines.push({
         student_id: sid,
@@ -189,7 +193,8 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       .eq("student_id", sid)
       .eq("semester_year", seasonYear)
       .maybeSingle();
-    if (!existing?.recital_fee_charged) {
+    const alreadyOnInvoice = await hasExistingFeeLine(sid, "recital_fee", seasonYear);
+    if (!existing?.recital_fee_charged && !alreadyOnInvoice) {
       const studentName = input.enrollments.find((e) => e.student_id === sid)?.student_name ?? "Student";
       lines.push({
         student_id: sid,
