@@ -39,6 +39,7 @@ import { Route as AuthenticatedAdminMessagesRouteImport } from './routes/_authen
 import { Route as AuthenticatedAdminInvoicesRouteImport } from './routes/_authenticated/admin.invoices'
 import { Route as AuthenticatedAdminInvoiceRequestsRouteImport } from './routes/_authenticated/admin.invoice-requests'
 import { Route as AuthenticatedAdminInvoiceMigrationRouteImport } from './routes/_authenticated/admin.invoice-migration'
+import { Route as AuthenticatedAdminDuplicateFeesRouteImport } from './routes/_authenticated/admin.duplicate-fees'
 import { Route as AuthenticatedAdminContactRouteImport } from './routes/_authenticated/admin.contact'
 import { Route as AuthenticatedAdminClassesRouteImport } from './routes/_authenticated/admin.classes'
 import { Route as AuthenticatedAdminAttendanceRouteImport } from './routes/_authenticated/admin.attendance'
@@ -211,6 +212,12 @@ const AuthenticatedAdminInvoiceMigrationRoute =
     path: '/invoice-migration',
     getParentRoute: () => AuthenticatedAdminRoute,
   } as any)
+const AuthenticatedAdminDuplicateFeesRoute =
+  AuthenticatedAdminDuplicateFeesRouteImport.update({
+    id: '/duplicate-fees',
+    path: '/duplicate-fees',
+    getParentRoute: () => AuthenticatedAdminRoute,
+  } as any)
 const AuthenticatedAdminContactRoute =
   AuthenticatedAdminContactRouteImport.update({
     id: '/contact',
@@ -292,6 +299,7 @@ export interface FileRoutesByFullPath {
   '/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/contact': typeof AuthenticatedAdminContactRoute
+  '/admin/duplicate-fees': typeof AuthenticatedAdminDuplicateFeesRoute
   '/admin/invoice-migration': typeof AuthenticatedAdminInvoiceMigrationRoute
   '/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
@@ -332,6 +340,7 @@ export interface FileRoutesByTo {
   '/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/admin/contact': typeof AuthenticatedAdminContactRoute
+  '/admin/duplicate-fees': typeof AuthenticatedAdminDuplicateFeesRoute
   '/admin/invoice-migration': typeof AuthenticatedAdminInvoiceMigrationRoute
   '/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
@@ -375,6 +384,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/attendance': typeof AuthenticatedAdminAttendanceRoute
   '/_authenticated/admin/classes': typeof AuthenticatedAdminClassesRoute
   '/_authenticated/admin/contact': typeof AuthenticatedAdminContactRoute
+  '/_authenticated/admin/duplicate-fees': typeof AuthenticatedAdminDuplicateFeesRoute
   '/_authenticated/admin/invoice-migration': typeof AuthenticatedAdminInvoiceMigrationRoute
   '/_authenticated/admin/invoice-requests': typeof AuthenticatedAdminInvoiceRequestsRoute
   '/_authenticated/admin/invoices': typeof AuthenticatedAdminInvoicesRoute
@@ -418,6 +428,7 @@ export interface FileRouteTypes {
     | '/admin/attendance'
     | '/admin/classes'
     | '/admin/contact'
+    | '/admin/duplicate-fees'
     | '/admin/invoice-migration'
     | '/admin/invoice-requests'
     | '/admin/invoices'
@@ -458,6 +469,7 @@ export interface FileRouteTypes {
     | '/admin/attendance'
     | '/admin/classes'
     | '/admin/contact'
+    | '/admin/duplicate-fees'
     | '/admin/invoice-migration'
     | '/admin/invoice-requests'
     | '/admin/invoices'
@@ -500,6 +512,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/attendance'
     | '/_authenticated/admin/classes'
     | '/_authenticated/admin/contact'
+    | '/_authenticated/admin/duplicate-fees'
     | '/_authenticated/admin/invoice-migration'
     | '/_authenticated/admin/invoice-requests'
     | '/_authenticated/admin/invoices'
@@ -758,6 +771,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminInvoiceMigrationRouteImport
       parentRoute: typeof AuthenticatedAdminRoute
     }
+    '/_authenticated/admin/duplicate-fees': {
+      id: '/_authenticated/admin/duplicate-fees'
+      path: '/duplicate-fees'
+      fullPath: '/admin/duplicate-fees'
+      preLoaderRoute: typeof AuthenticatedAdminDuplicateFeesRouteImport
+      parentRoute: typeof AuthenticatedAdminRoute
+    }
     '/_authenticated/admin/contact': {
       id: '/_authenticated/admin/contact'
       path: '/contact'
@@ -835,6 +855,7 @@ interface AuthenticatedAdminRouteChildren {
   AuthenticatedAdminAttendanceRoute: typeof AuthenticatedAdminAttendanceRoute
   AuthenticatedAdminClassesRoute: typeof AuthenticatedAdminClassesRoute
   AuthenticatedAdminContactRoute: typeof AuthenticatedAdminContactRoute
+  AuthenticatedAdminDuplicateFeesRoute: typeof AuthenticatedAdminDuplicateFeesRoute
   AuthenticatedAdminInvoiceMigrationRoute: typeof AuthenticatedAdminInvoiceMigrationRoute
   AuthenticatedAdminInvoiceRequestsRoute: typeof AuthenticatedAdminInvoiceRequestsRoute
   AuthenticatedAdminInvoicesRoute: typeof AuthenticatedAdminInvoicesRoute
@@ -852,6 +873,7 @@ const AuthenticatedAdminRouteChildren: AuthenticatedAdminRouteChildren = {
   AuthenticatedAdminAttendanceRoute: AuthenticatedAdminAttendanceRoute,
   AuthenticatedAdminClassesRoute: AuthenticatedAdminClassesRoute,
   AuthenticatedAdminContactRoute: AuthenticatedAdminContactRoute,
+  AuthenticatedAdminDuplicateFeesRoute: AuthenticatedAdminDuplicateFeesRoute,
   AuthenticatedAdminInvoiceMigrationRoute:
     AuthenticatedAdminInvoiceMigrationRoute,
   AuthenticatedAdminInvoiceRequestsRoute:

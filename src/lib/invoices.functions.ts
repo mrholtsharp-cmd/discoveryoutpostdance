@@ -18,6 +18,25 @@ async function ensureAdmin(context: { supabase: any; userId: string }) {
   if (!ok) throw new Error("Forbidden");
 }
 
+// True when a non-cancelled invoice already contains a one-time-fee line for
+// this student+category+season. Used as defense-in-depth against duplicates.
+async function hasExistingFeeLine(
+  studentId: string,
+  category: "registration_fee" | "recital_fee",
+  seasonYear: number,
+): Promise<boolean> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data } = await supabaseAdmin
+    .from("invoice_line_items")
+    .select("id, invoice_id, invoices!inner(status, semester_year)")
+    .eq("student_id", studentId)
+    .eq("category", category)
+    .eq("invoices.semester_year", seasonYear)
+    .neq("invoices.status", "cancelled")
+    .limit(1);
+  return (data ?? []).length > 0;
+}
+
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
@@ -154,7 +173,11 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       .eq("semester_year", seasonYear)
       .maybeSingle();
     const alreadyCharged = !!existing?.registration_fee_charged;
-    if (!alreadyCharged) {
+    // Defense in depth: also verify no non-cancelled invoice already has this
+    // fee line for the student+season. Prevents duplicates if student_semester_fees
+    // is out of sync with actual invoice history.
+    const alreadyOnInvoice = await hasExistingFeeLine(sid, "registration_fee", seasonYear);
+    if (!alreadyCharged && !alreadyOnInvoice) {
       const studentName = input.enrollments.find((e) => e.student_id === sid)?.student_name ?? "Student";
       lines.push({
         student_id: sid,
@@ -189,7 +212,8 @@ export async function buildInvoiceForRegistration(input: BuildInvoiceInput): Pro
       .eq("student_id", sid)
       .eq("semester_year", seasonYear)
       .maybeSingle();
-    if (!existing?.recital_fee_charged) {
+    const alreadyOnInvoice = await hasExistingFeeLine(sid, "recital_fee", seasonYear);
+    if (!existing?.recital_fee_charged && !alreadyOnInvoice) {
       const studentName = input.enrollments.find((e) => e.student_id === sid)?.student_name ?? "Student";
       lines.push({
         student_id: sid,

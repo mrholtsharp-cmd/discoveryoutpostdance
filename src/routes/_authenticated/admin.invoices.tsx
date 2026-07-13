@@ -212,6 +212,9 @@ function AdminInvoicesPage() {
               <FileText className="h-3.5 w-3.5" />
               {backfillM.isPending ? "Reviewing…" : "Review missing invoices"}
             </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/duplicate-fees">Fix duplicate one-time fees</Link>
+            </Button>
           </div>
         </div>
         <p className="text-sm text-muted-foreground mt-1">
